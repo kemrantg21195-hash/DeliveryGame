@@ -9,6 +9,19 @@ public class PauseManager : MonoBehaviour
     public GameObject mainMenuWindow;
     public GameObject settingsWindow;
     public GameObject gameplayHUD;
+    public GameObject points;
+
+    [Header("Настройки прозрачности фона")]
+    [Range(0f, 1f)] public float pauseAlpha = 0.5f;
+    private Image bgImage;
+
+    [Header("Кнопки Главного Меню / Паузы")]
+    public GameObject startGameButton;
+    public GameObject settingsButton;
+    public GameObject resumeButton;
+    public GameObject restartButton;
+    public GameObject quitButton;
+    public GameObject backToMenuButton;
 
     [Header("Ссылки на компоненты машины")]
     public PickupController carController;
@@ -19,28 +32,59 @@ public class PauseManager : MonoBehaviour
     public Toggle hudToggle;
 
     private bool isPaused = false;
-    private bool isInMainMenu = false;
+    private bool isInMainMenu = true;
 
-    // Константы для ключей PlayerPrefs (защита от опечаток)
     private const string ABS_KEY = "Setting_ABS";
     private const string TRANSMISSION_KEY = "Setting_Transmission";
     private const string HUD_KEY = "Setting_HUD";
+    private const string RESTART_FLAG_KEY = "QuickRestartActive"; // Ключ для обхода меню при рестарте
 
     void Start()
     {
-        Time.timeScale = 1f;
-        isInMainMenu = false;
-        isPaused = false;
+        if (pauseMenuPanel != null)
+        {
+            bgImage = pauseMenuPanel.GetComponent<Image>();
+        }
 
-        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
-        if (mainMenuWindow != null) mainMenuWindow.SetActive(false);
+        // Был ли это быстрый перезапуск через кнопку "Заново"?
+        if (PlayerPrefs.GetInt(RESTART_FLAG_KEY, 0) == 1)
+        {
+            PlayerPrefs.SetInt(RESTART_FLAG_KEY, 0);
+            PlayerPrefs.Save();
+
+            isInMainMenu = false;
+            isPaused = false;
+            Time.timeScale = 1f;
+
+            if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
+            if (mainMenuWindow != null) mainMenuWindow.SetActive(false);
+            if (gameplayHUD != null && (hudToggle == null || hudToggle.isOn)) gameplayHUD.SetActive(true);
+
+            // ⚡ ВКЛЮЧАЕМ элемент при быстром перезапуске (минуя меню)
+            if (points != null) points.SetActive(true);
+        }
+        else
+        {
+            // Стандартный запуск: открываем Главное меню
+            Time.timeScale = 0f;
+            isInMainMenu = true;
+            isPaused = true;
+
+            if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
+            if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
+            if (gameplayHUD != null) gameplayHUD.SetActive(false);
+
+            // ⚡ ГЛУШИМ элемент в самом главном меню при старте
+            if (points != null) points.SetActive(false);
+
+            SetBackgroundAlpha(1f);
+        }
+
         if (settingsWindow != null) settingsWindow.SetActive(false);
-        if (gameplayHUD != null) gameplayHUD.SetActive(true);
 
-        // 1. ЗАГРУЗКА И ПРИМЕНЕНИЕ НАСТРОЕК
+        UpdateMenuButtons();
         LoadAndApplySettings();
 
-        // 2. Слушатели для Toggles (добавляем ПОСЛЕ загрузки, чтобы не вызывать лишние сохранения)
         if (absToggle != null) absToggle.onValueChanged.AddListener(SetABS);
         if (autoTransmissionToggle != null) autoTransmissionToggle.onValueChanged.AddListener(SetTransmission);
         if (hudToggle != null) hudToggle.onValueChanged.AddListener(SetHUDVisibility);
@@ -61,6 +105,10 @@ public class PauseManager : MonoBehaviour
         isPaused = false;
         if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
         if (gameplayHUD != null && (hudToggle == null || hudToggle.isOn)) gameplayHUD.SetActive(true);
+
+        // ⚡ ВКЛЮЧАЕМ ваш постоянный элемент интерфейса, когда игрок нажимает "Начать игру"
+        if (points != null) points.SetActive(true);
+
         Time.timeScale = 1f;
     }
 
@@ -70,6 +118,10 @@ public class PauseManager : MonoBehaviour
         if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
         if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
         if (settingsWindow != null) settingsWindow.SetActive(false);
+
+        SetBackgroundAlpha(pauseAlpha);
+        UpdateMenuButtons();
+
         Time.timeScale = 0f;
     }
 
@@ -77,6 +129,10 @@ public class PauseManager : MonoBehaviour
     {
         isPaused = false;
         if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
+
+        // ⚡ УБЕЖДАЕМСЯ, что элемент активен, когда мы снимаем игру с паузы по Escape
+        if (points != null) points.SetActive(true);
+
         Time.timeScale = 1f;
     }
 
@@ -92,14 +148,23 @@ public class PauseManager : MonoBehaviour
         if (settingsWindow != null) settingsWindow.SetActive(false);
     }
 
+    // ⚡ ОБНОВЛЕННЫЙ МЕТОД ПЕРЕЗАПУСКА УРОВНЯ
     public void RestartLevel()
     {
+        // Перед перезагрузкой ставим отметку, что игру нужно запустить СРАЗУ
+        PlayerPrefs.SetInt(RESTART_FLAG_KEY, 1);
+        PlayerPrefs.Save();
+
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     public void GoToMainMenu()
     {
+        // При явном выходе в главное меню через кнопку — убираем флаг быстрого старта на всякий случай
+        PlayerPrefs.SetInt(RESTART_FLAG_KEY, 0);
+        PlayerPrefs.Save();
+
         isInMainMenu = true;
         isPaused = true;
         Time.timeScale = 0f;
@@ -107,32 +172,77 @@ public class PauseManager : MonoBehaviour
         if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
         if (settingsWindow != null) settingsWindow.SetActive(false);
         if (gameplayHUD != null) gameplayHUD.SetActive(false);
+
+        SetBackgroundAlpha(1f);
+        UpdateMenuButtons();
     }
 
     public void QuitGame()
     {
         Debug.Log("Выход из игры...");
+
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
         Application.Quit();
+#endif
     }
 
-    // --- ФУНКЦИИ НАСТРОЕК С СОХРАНЕНИЕМ --- 
+    private void SetBackgroundAlpha(float alphaValue)
+    {
+        if (bgImage != null)
+        {
+            Color currentColor = bgImage.color;
+            currentColor.a = alphaValue;
+            bgImage.color = currentColor;
+        }
+    }
+
+    private void UpdateMenuButtons()
+    {
+        if (isInMainMenu)
+        {
+            // Режим СТАРТА игры (Главное меню):
+            if (startGameButton != null) startGameButton.SetActive(true);
+            if (settingsButton != null) settingsButton.SetActive(true);
+            if (quitButton != null) quitButton.SetActive(true);
+
+            if (resumeButton != null) resumeButton.SetActive(false);
+            if (restartButton != null) restartButton.SetActive(false);
+            if (backToMenuButton != null) backToMenuButton.SetActive(false);
+
+            // ⚡ ОТКЛЮЧАЕМ ваш постоянный элемент интерфейса, пока игрок в главном меню
+            if (points != null) points.SetActive(false);
+        }
+        else
+        {
+            // Режим ИГРОВОЙ ПАУЗЫ (После нажатия Escape или во время рейса):
+            if (startGameButton != null) startGameButton.SetActive(false);
+            if (quitButton != null) quitButton.SetActive(false);
+
+            if (resumeButton != null) resumeButton.SetActive(true);
+            if (restartButton != null) restartButton.SetActive(true);
+            if (settingsButton != null) settingsButton.SetActive(true);
+            if (backToMenuButton != null) backToMenuButton.SetActive(true);
+
+            // ⚡ ВКЛЮЧАЕМ элемент интерфейса обратно во время самой игры
+            // Если вы хотите, чтобы он прятался еще и в момент, когда нажата ПАУЗА (Escape),
+            // то вместо 'true' напишите '!isPaused' (он будет активен только при движении машины)
+            if (points != null) points.SetActive(true);
+        }
+    }
+
 
     private void LoadAndApplySettings()
     {
-        // PlayerPrefs не хранит bool, поэтому используем 1 (true) и 0 (false)
-        // Второй параметр в GetInt — это значение по умолчанию, если игра запущена впервые
-
-        // Загрузка ABS (по умолчанию включен - 1)
         bool absValue = PlayerPrefs.GetInt(ABS_KEY, 1) == 1;
         if (carController != null) carController.useABS = absValue;
         if (absToggle != null) absToggle.isOn = absValue;
 
-        // Загрузка трансмиссии (по умолчанию автомат - 1)
         bool transValue = PlayerPrefs.GetInt(TRANSMISSION_KEY, 1) == 1;
         if (carController != null) carController.isAutomatic = transValue;
         if (autoTransmissionToggle != null) autoTransmissionToggle.isOn = transValue;
 
-        // Загрузка видимости HUD (по умолчанию включен - 1)
         bool hudValue = PlayerPrefs.GetInt(HUD_KEY, 1) == 1;
         if (gameplayHUD != null) gameplayHUD.SetActive(hudValue);
         if (hudToggle != null) hudToggle.isOn = hudValue;
@@ -142,7 +252,7 @@ public class PauseManager : MonoBehaviour
     {
         if (carController != null) carController.useABS = value;
         PlayerPrefs.SetInt(ABS_KEY, value ? 1 : 0);
-        PlayerPrefs.Save(); // Записываем данные на диск
+        PlayerPrefs.Save();
     }
 
     private void SetTransmission(bool value)
@@ -159,4 +269,3 @@ public class PauseManager : MonoBehaviour
         PlayerPrefs.Save();
     }
 }
-
