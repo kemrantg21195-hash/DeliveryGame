@@ -8940,10 +8940,11 @@ MonoBehaviour:
   lossDistance: 2.5
   currentScore: 0
   deliveryReward: 200
-  lossPenalty: 100
-  deliveryTimeLimit: 30
+  lossPenalty: 200
   scoreText: {fileID: 2075649074}
   timerText: {fileID: 71953906}
+  secondsPerMeter: 0.12
+  baseTimeBuffer: 15
   pickupHoldTime: 2
   penaltyPerSecond: 5
   spawnCooldown: 2
@@ -20107,7 +20108,7 @@ Transform:
   m_GameObject: {fileID: 1667671047}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.08, y: 1.634, z: -1.496}
+  m_LocalPosition: {x: -0.02, y: 1.634, z: -1.42}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

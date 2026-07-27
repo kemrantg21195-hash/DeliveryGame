@@ -27,9 +27,13 @@ public class CargoManager : MonoBehaviour
     public int currentScore = 0;
     public int deliveryReward = 200;
     public int lossPenalty = 100;
-    public float deliveryTimeLimit = 30f;
     public TMP_Text scoreText;
     public TMP_Text timerText;
+
+    [Header("Умный таймер")]
+    public float secondsPerMeter = 0.5f; // Сколько секунд даем за каждый метр пути
+    public float baseTimeBuffer = 15f;   // Несгораемый запас времени (на разгон и парковку)
+    private float deliveryTimeLimit;     // Теперь это скрытая переменная, скрипт считает ее сам
 
     [Header("Настройки погрузки")]
     public float pickupHoldTime = 2f; // Сколько секунд нужно простоять в зоне
@@ -183,11 +187,20 @@ public class CargoManager : MonoBehaviour
         float remainingCooldown = Mathf.Max(0, spawnCooldown - 1f);
 
         if (pickupZoneObject != null) pickupZoneObject.SetActive(false);
+
+        // 1. Сначала выбираем случайный финиш
         SetRandomDropoffZone();
 
-        // СБРОС И ЗАПУСК ТАЙМЕРА
+        // 2. Считаем дистанцию по прямой от текущего места до финиша
+        float distance = Vector3.Distance(transform.position, lastDropoffPoint.position);
+
+        // 3. Высчитываем справедливое время для этого рейса
+        deliveryTimeLimit = baseTimeBuffer + (distance * secondsPerMeter);
+
         isLate = false;
-        appliedTimePenalty = 0; // Сбрасываем счетчик штрафа!
+        appliedTimePenalty = 0;
+
+        // 4. Запускаем таймер с новым, вычисленным временем
         currentTimer = deliveryTimeLimit;
         isTimerRunning = true;
 
