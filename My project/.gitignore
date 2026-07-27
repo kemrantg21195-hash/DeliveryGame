@@ -1,0 +1,73 @@
+# =========================================================================
+# Official Unity 6 Gitignore Template
+# =========================================================================
+
+# Unity temporary and generated folders
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Unity 6 / modern engine telemetry & crash logs
+.utmp/
+*.log
+
+# Asset meta data must NOT be ignored unless the asset itself is ignored
+!/[Aa]ssets/**/*.meta
+
+# Video / Authoring tools local exports
+/[Aa]sets/Recordings/
+
+# Avoid tracking local crash dumps and profiles
+*.apk
+*.unitypackage
+*.aa/
+
+# =========================================================================
+# IDE and Development Tool Environments
+# =========================================================================
+
+# Visual Studio / VS Code / JetBrains Rider
+.vs/
+.idea/
+*.sln
+*.csproj
+*.unityproj
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.opendb
+*.VC.db
+
+# Compiler crash dumps
+crashdump.dmp
+*.stackdump
+
+# =========================================================================
+# Operating System Specific Files
+# =========================================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.Trashes
