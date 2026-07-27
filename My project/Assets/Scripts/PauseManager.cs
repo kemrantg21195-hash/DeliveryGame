@@ -56,11 +56,13 @@ public class PauseManager : MonoBehaviour
             isPaused = false;
             Time.timeScale = 1f;
 
+            // ⚡ ВКЛЮЧАЕМ ЗВУКИ: При быстром рестарте звуки должны работать
+            AudioListener.pause = false;
+
             if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
             if (mainMenuWindow != null) mainMenuWindow.SetActive(false);
             if (gameplayHUD != null && (hudToggle == null || hudToggle.isOn)) gameplayHUD.SetActive(true);
 
-            // ⚡ ВКЛЮЧАЕМ элемент при быстром перезапуске (минуя меню)
             if (points != null) points.SetActive(true);
         }
         else
@@ -70,11 +72,13 @@ public class PauseManager : MonoBehaviour
             isInMainMenu = true;
             isPaused = true;
 
+            // ⚡ ВЫКЛЮЧАЕМ ЗВУКИ: В самом главном меню при старте должна быть тишина
+            AudioListener.pause = true;
+
             if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
             if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
             if (gameplayHUD != null) gameplayHUD.SetActive(false);
 
-            // ⚡ ГЛУШИМ элемент в самом главном меню при старте
             if (points != null) points.SetActive(false);
 
             SetBackgroundAlpha(1f);
@@ -105,9 +109,10 @@ public class PauseManager : MonoBehaviour
         isPaused = false;
         if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
         if (gameplayHUD != null && (hudToggle == null || hudToggle.isOn)) gameplayHUD.SetActive(true);
-
-        // ⚡ ВКЛЮЧАЕМ ваш постоянный элемент интерфейса, когда игрок нажимает "Начать игру"
         if (points != null) points.SetActive(true);
+
+        // ⚡ ВКЛЮЧАЕМ ЗВУКИ: Игрок нажал "Начать", запускаем аудиосистему рейса
+        AudioListener.pause = false;
 
         Time.timeScale = 1f;
     }
@@ -122,6 +127,9 @@ public class PauseManager : MonoBehaviour
         SetBackgroundAlpha(pauseAlpha);
         UpdateMenuButtons();
 
+        // ⚡ ВЫКЛЮЧАЕМ ЗВУКИ: Полная тишина при нажатии Escape посреди игры
+        AudioListener.pause = true;
+
         Time.timeScale = 0f;
     }
 
@@ -129,9 +137,10 @@ public class PauseManager : MonoBehaviour
     {
         isPaused = false;
         if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
-
-        // ⚡ УБЕЖДАЕМСЯ, что элемент активен, когда мы снимаем игру с паузы по Escape
         if (points != null) points.SetActive(true);
+
+        // ⚡ ВКЛЮЧАЕМ ЗВУКИ: Возвращаем все звуки обратно при снятии с паузы
+        AudioListener.pause = false;
 
         Time.timeScale = 1f;
     }
