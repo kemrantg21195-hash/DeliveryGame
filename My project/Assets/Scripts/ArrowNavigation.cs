@@ -3,223 +3,181 @@ using UnityEngine.AI;
 
 public class ArrowNavigation : MonoBehaviour
 {
-    [Header("Ссылки")]
-    public GameObject warningTextObject;
-    public GameObject arrowVisualContainer;
+    [Header("Ссылки на визуал")]
+    public GameObject arrowVisualContainer; // Сама 3D-стрелка
+    public GameObject warningTextObject;    // UI Текст "Вы съехали с дороги!"
 
-    [Header("Настройки навигатора")]
-    [SerializeField] private float rotationSpeed = 10f;
-    [SerializeField] private float sampleRadius = 5.0f;
+    [Header("Настройки")]
+    [Tooltip("Скорость поворота стрелки")]
+    public float rotationSpeed = 8f;
+    [Tooltip("На сколько метров вперед смотрит стрелка")]
+    public float minLookAheadDistance = 3f;
+    [Tooltip("Допустимое расстояние от дороги (в метрах)")]
+    public float offRoadTolerance = 5f;
 
-    [Header("Умный маршрут")]
-    [SerializeField] private float deviationThreshold = 15f; // Насколько можно отъехать от маршрута (в метрах)
-    [SerializeField] private float waypointReachRadius = 10f; // За сколько метров засчитывать прохождение поворота
-
-    private NavMeshPath activePath;
+    private CargoManager cargoManager;
+    private NavMeshPath path;
     private Transform currentTarget;
-    private int currentCornerIndex = 0;
+    private bool isOffRoad = false;
 
     private int roadAreaMask;
     private int roadAreaIndex;
-    private bool isCurrentlyOnRoad = true;
-
-    private CargoManager cargoManager;
-    private Vector3 currentTargetDirection;
 
     void Start()
     {
-        activePath = new NavMeshPath();
         cargoManager = GetComponentInParent<CargoManager>();
+        path = new NavMeshPath();
+
+        // Получаем слой "Road", если он создан в Navigation
+        roadAreaIndex = NavMesh.GetAreaFromName("Road");
+        if (roadAreaIndex != -1)
+        {
+            roadAreaMask = 1 << roadAreaIndex;
+        }
+        else
+        {
+            roadAreaMask = NavMesh.AllAreas; // Если слоя Road нет, используем всю сетку
+        }
 
         if (warningTextObject != null) warningTextObject.SetActive(false);
-
-        roadAreaIndex = NavMesh.GetAreaFromName("Road");
-        roadAreaMask = (roadAreaIndex != -1) ? (1 << roadAreaIndex) : NavMesh.AllAreas;
-
-        ToggleRoadState(CheckIfPlayerIsOnRoad());
     }
 
     void Update()
     {
-        bool isOnRoad = CheckIfPlayerIsOnRoad();
-        if (isOnRoad != isCurrentlyOnRoad) ToggleRoadState(isOnRoad);
+        if (cargoManager == null) return;
 
-        if (!isOnRoad) return;
+        // 1. Проверяем, на дороге ли машина
+        CheckRoadStatus();
 
-        CheckAndTargetUpdate();
-        FollowActivePath();
+        if (isOffRoad) return;
 
-        // Плавный поворот стрелки
-        if (currentTargetDirection != Vector3.zero)
+        // 2. Ищем актуальную цель (Pickup или Dropoff)
+        UpdateTarget();
+
+        // 3. Строим маршрут и направляем стрелку
+        PointArrow();
+    }
+
+    private void CheckRoadStatus()
+    {
+        Vector3 groundPosition = transform.position;
+        if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 10f))
         {
-            Quaternion targetRotation = Quaternion.LookRotation(currentTargetDirection);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+            groundPosition = hit.point;
+        }
+
+        if (NavMesh.SamplePosition(groundPosition, out NavMeshHit navHit, offRoadTolerance, NavMesh.AllAreas))
+        {
+            if (isOffRoad)
+            {
+                isOffRoad = false;
+                if (warningTextObject != null) warningTextObject.SetActive(false);
+                if (arrowVisualContainer != null && currentTarget != null) arrowVisualContainer.SetActive(true);
+            }
+        }
+        else
+        {
+            if (!isOffRoad)
+            {
+                isOffRoad = true;
+                if (warningTextObject != null) warningTextObject.SetActive(true);
+                if (arrowVisualContainer != null) arrowVisualContainer.SetActive(false);
+            }
         }
     }
 
-    void CheckAndTargetUpdate()
+    private void UpdateTarget()
     {
-        if (cargoManager == null) return;
-
         string targetTag = cargoManager.HasCargo() ? "Dropoff" : "Pickup";
         GameObject[] targets = GameObject.FindGameObjectsWithTag(targetTag);
 
         if (targets.Length == 0)
         {
             currentTarget = null;
+            if (arrowVisualContainer != null) arrowVisualContainer.SetActive(false);
             return;
         }
 
-        // Ищем ближайшую цель
         float closestDistance = Mathf.Infinity;
         Transform bestTarget = null;
+
         foreach (GameObject target in targets)
         {
             if (target == null || !target.activeInHierarchy) continue;
-            float distance = Vector3.Distance(transform.position, target.transform.position);
-            if (distance < closestDistance)
+
+            float dist = Vector3.Distance(transform.position, target.transform.position);
+            if (dist < closestDistance)
             {
-                closestDistance = distance;
+                closestDistance = dist;
                 bestTarget = target.transform;
             }
         }
 
-        // Если цель сменилась (взяли или отдали груз) или маршрута вообще нет - строим новый
-        if (currentTarget != bestTarget || activePath.corners.Length == 0)
-        {
-            currentTarget = bestTarget;
-            CalculateNewPath();
-        }
-        else
-        {
-            // Проверяем, не сильно ли мы отклонились от текущего маршрута
-            float distanceToRoute = GetDistanceToPath(transform.position, activePath);
-            if (distanceToRoute > deviationThreshold)
-            {
-                Debug.Log("Перестроение маршрута! Отклонение: " + distanceToRoute + "м.");
-                CalculateNewPath();
-            }
-        }
+        currentTarget = bestTarget;
     }
 
-    void CalculateNewPath()
+    private void PointArrow()
     {
         if (currentTarget == null) return;
 
-        Vector3 startPos = transform.position;
-        Vector3 targetPos = currentTarget.position;
+        if (arrowVisualContainer != null && !isOffRoad) arrowVisualContainer.SetActive(true);
 
-        bool startSnapped = NavMesh.SamplePosition(startPos, out NavMeshHit startHit, sampleRadius, NavMesh.AllAreas);
-        bool targetSnapped = NavMesh.SamplePosition(targetPos, out NavMeshHit targetHit, sampleRadius, NavMesh.AllAreas);
+        Vector3 directionToPoint = Vector3.zero;
 
-        if (startSnapped && targetSnapped)
+        // ПРИВЯЗКА К NAVMESH: ищем ближайшие валидные точки на дороге для старта и цели
+        bool hasStartPoint = NavMesh.SamplePosition(transform.position, out NavMeshHit startHit, 10f, NavMesh.AllAreas);
+        bool hasTargetPoint = NavMesh.SamplePosition(currentTarget.position, out NavMeshHit targetHit, 10f, NavMesh.AllAreas);
+
+        if (hasStartPoint && hasTargetPoint)
         {
-            NavMesh.CalculatePath(startHit.position, targetHit.position, roadAreaMask, activePath);
-
-            // Если путь успешно построен, начинаем ехать к первой точке поворота (индекс 1)
-            if (activePath.status == NavMeshPathStatus.PathComplete && activePath.corners.Length > 1)
+            // Строим маршрут строго между найденными точками на дороге
+            if (NavMesh.CalculatePath(startHit.position, targetHit.position, roadAreaMask, path))
             {
-                currentCornerIndex = 1;
-            }
-        }
-    }
+                if (path.corners.Length > 1)
+                {
+                    bool foundWaypoint = false;
+                    for (int i = 1; i < path.corners.Length; i++)
+                    {
+                        if (Vector3.Distance(transform.position, path.corners[i]) > minLookAheadDistance)
+                        {
+                            directionToPoint = path.corners[i] - transform.position;
+                            foundWaypoint = true;
+                            break;
+                        }
+                    }
 
-    void FollowActivePath()
-    {
-        if (activePath == null || activePath.corners.Length == 0 || currentTarget == null)
-        {
-            currentTargetDirection = Vector3.zero;
-            return;
-        }
-
-        // Проверяем, достигли ли мы текущего поворота
-        if (currentCornerIndex < activePath.corners.Length)
-        {
-            // Игнорируем перепады высот при расчете дистанции
-            Vector2 playerPos2D = new Vector2(transform.position.x, transform.position.z);
-            Vector2 cornerPos2D = new Vector2(activePath.corners[currentCornerIndex].x, activePath.corners[currentCornerIndex].z);
-
-            // Если подъехали достаточно близко к повороту — переключаемся на следующий
-            if (Vector2.Distance(playerPos2D, cornerPos2D) < waypointReachRadius)
-            {
-                currentCornerIndex++;
+                    if (!foundWaypoint)
+                    {
+                        directionToPoint = path.corners[path.corners.Length - 1] - transform.position;
+                    }
+                }
             }
         }
 
-        // Направляем стрелку на актуальный поворот
-        if (currentCornerIndex < activePath.corners.Length)
+        // Если маршрут построить не удалось вообще, используем прямую линию как запасной вариант
+        if (directionToPoint == Vector3.zero)
         {
-            Vector3 dir = activePath.corners[currentCornerIndex] - transform.position;
-            dir.y = 0;
-            if (dir != Vector3.zero) currentTargetDirection = dir;
+            directionToPoint = currentTarget.position - transform.position;
         }
-        else
+
+        directionToPoint.y = 0; // Игнорируем перепады высоты
+
+        if (directionToPoint != Vector3.zero)
         {
-            // Если кончились точки маршрута (мы на финишной прямой) - смотрим прямо на базу
-            Vector3 dir = currentTarget.position - transform.position;
-            dir.y = 0;
-            if (dir != Vector3.zero) currentTargetDirection = dir;
+            Quaternion lookRotation = Quaternion.LookRotation(directionToPoint);
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
         }
     }
 
-    // Математика: вычисляет дистанцию от машины до ближайшей ЛИНИИ маршрута
-    float GetDistanceToPath(Vector3 position, NavMeshPath path)
+    // Голубая линия маршрута в окне Scene для отладки
+    private void OnDrawGizmos()
     {
-        if (path == null || path.corners.Length < 2) return 0f;
-
-        float minDistance = float.MaxValue;
-        for (int i = 0; i < path.corners.Length - 1; i++)
+        if (path != null && path.corners != null && path.corners.Length > 1)
         {
-            float dist = DistancePointToLineSegment(position, path.corners[i], path.corners[i + 1]);
-            if (dist < minDistance) minDistance = dist;
-        }
-        return minDistance;
-    }
-
-    float DistancePointToLineSegment(Vector3 point, Vector3 lineStart, Vector3 lineEnd)
-    {
-        Vector3 lineDir = lineEnd - lineStart;
-        float lineLength = lineDir.magnitude;
-        if (lineLength == 0) return Vector3.Distance(point, lineStart);
-
-        lineDir.Normalize();
-        float projectLength = Mathf.Clamp(Vector3.Dot(point - lineStart, lineDir), 0f, lineLength);
-        Vector3 closestPoint = lineStart + lineDir * projectLength;
-
-        return Vector3.Distance(point, closestPoint);
-    }
-
-    void ToggleRoadState(bool isOnRoad)
-    {
-        isCurrentlyOnRoad = isOnRoad;
-        if (arrowVisualContainer != null) arrowVisualContainer.SetActive(isOnRoad);
-        if (warningTextObject != null) warningTextObject.SetActive(!isOnRoad);
-    }
-
-    bool CheckIfPlayerIsOnRoad()
-    {
-        Vector3 groundPosition = transform.position;
-        if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit rayHit, 10f)) groundPosition = rayHit.point;
-        if (NavMesh.SamplePosition(groundPosition, out NavMeshHit navHit, 3.0f, NavMesh.AllAreas))
-        {
-            if (roadAreaIndex != -1) return (navHit.mask & (1 << roadAreaIndex)) != 0;
-            return true;
-        }
-        return false;
-    }
-
-    // Отрисовка отладочной графики в редакторе (зеленая линия - маршрут, красный шар - текущая цель стрелки)
-    private void OnDrawGizmosSelected()
-    {
-        if (activePath != null && activePath.corners != null && activePath.corners.Length > 1)
-        {
-            Gizmos.color = Color.green;
-            for (int i = 0; i < activePath.corners.Length - 1; i++) Gizmos.DrawLine(activePath.corners[i], activePath.corners[i + 1]);
-
-            if (currentCornerIndex < activePath.corners.Length)
+            Gizmos.color = Color.cyan;
+            for (int i = 0; i < path.corners.Length - 1; i++)
             {
-                Gizmos.color = Color.red;
-                Gizmos.DrawSphere(activePath.corners[currentCornerIndex], 1.5f);
+                Gizmos.DrawLine(path.corners[i], path.corners[i + 1]);
             }
         }
     }
