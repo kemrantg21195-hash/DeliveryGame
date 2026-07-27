@@ -1585,7 +1585,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6554908339784557341, guid: 7d234fb78b120b84c911c8b7cc288dcf, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.000012968338
+      value: -0.43
       objectReference: {fileID: 0}
     - target: {fileID: 6554908339784557341, guid: 7d234fb78b120b84c911c8b7cc288dcf, type: 3}
       propertyPath: m_LocalPosition.z
@@ -1641,9 +1641,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7404313606059676194, guid: 7d234fb78b120b84c911c8b7cc288dcf, type: 3}
       propertyPath: m_Intensity
-      value: 20
+      value: 30
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 8430829437040902589, guid: 7d234fb78b120b84c911c8b7cc288dcf, type: 3}
+    - {fileID: 2793135081134379093, guid: 7d234fb78b120b84c911c8b7cc288dcf, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -2382,26 +2384,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -7743769569262299928, guid: 9630c294ed592684193b8f3fd6260d64, type: 3}
---- !u!114 &272858650
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 272858642}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1e3fdca004f2d45fe8abbed571a8abd5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifier
-  m_SerializedVersion: 0
-  m_OverrideArea: 1
-  m_Area: 3
-  m_OverrideGenerateLinks: 0
-  m_GenerateLinks: 0
-  m_IgnoreFromBuild: 0
-  m_ApplyToChildren: 1
-  m_AffectedAgents: ffffffff
 --- !u!1 &285806591
 GameObject:
   m_ObjectHideFlags: 0
@@ -3000,7 +2982,7 @@ MonoBehaviour:
   m_OverrideTileSize: 0
   m_TileSize: 256
   m_OverrideVoxelSize: 0
-  m_VoxelSize: 0.6666667
+  m_VoxelSize: 0.16666667
   m_MinRegionArea: 2
   m_NavMeshData: {fileID: 23800000, guid: 637d2da63eb0bc1468b7e7644c9cd306, type: 2}
   m_BuildHeightMesh: 0
@@ -5787,9 +5769,9 @@ MonoBehaviour:
   m_OverrideTileSize: 0
   m_TileSize: 256
   m_OverrideVoxelSize: 0
-  m_VoxelSize: 0.6666667
+  m_VoxelSize: 0.16666667
   m_MinRegionArea: 2
-  m_NavMeshData: {fileID: 23800000, guid: e0cbbb4d563b16a4f9be75b5e52cb7f3, type: 2}
+  m_NavMeshData: {fileID: 23800000, guid: ac5de423b2084cf40bb420b499d2b1ed, type: 2}
   m_BuildHeightMesh: 0
 --- !u!4 &625584159
 Transform:
@@ -6206,9 +6188,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: -2277415331956711228, guid: 9630c294ed592684193b8f3fd6260d64, type: 3}
       insertIndex: -1
       addedObject: {fileID: 272858646}
-    - targetCorrespondingSourceObject: {fileID: -2277415331956711228, guid: 9630c294ed592684193b8f3fd6260d64, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 272858650}
     - targetCorrespondingSourceObject: {fileID: -7191384701771782338, guid: 9630c294ed592684193b8f3fd6260d64, type: 3}
       insertIndex: -1
       addedObject: {fileID: 18625004}
@@ -6242,9 +6221,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7993092335251754018, guid: 9630c294ed592684193b8f3fd6260d64, type: 3}
       insertIndex: -1
       addedObject: {fileID: 910909808}
-    - targetCorrespondingSourceObject: {fileID: 7993092335251754018, guid: 9630c294ed592684193b8f3fd6260d64, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 910909812}
     - targetCorrespondingSourceObject: {fileID: 1375818398016082935, guid: 9630c294ed592684193b8f3fd6260d64, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2023464393}
@@ -6304,13 +6280,17 @@ PrefabInstance:
       propertyPath: m_Center.z
       value: -0.015881665
       objectReference: {fileID: 0}
+    - target: {fileID: 4050875644801989193, guid: 5c0cd34e9e91c9145b7db8fced311e2d, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4822698299663187250, guid: 5c0cd34e9e91c9145b7db8fced311e2d, type: 3}
       propertyPath: m_Range
       value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 4822698299663187250, guid: 5c0cd34e9e91c9145b7db8fced311e2d, type: 3}
       propertyPath: m_Intensity
-      value: 20
+      value: 30
       objectReference: {fileID: 0}
     - target: {fileID: 4964042963270799620, guid: 5c0cd34e9e91c9145b7db8fced311e2d, type: 3}
       propertyPath: m_Mesh
@@ -6376,7 +6356,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: PickupZone
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4050875644801989193, guid: 5c0cd34e9e91c9145b7db8fced311e2d, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -8246,26 +8227,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -2678257387862895843, guid: 9630c294ed592684193b8f3fd6260d64, type: 3}
---- !u!114 &910909812
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 910909804}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1e3fdca004f2d45fe8abbed571a8abd5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifier
-  m_SerializedVersion: 0
-  m_OverrideArea: 1
-  m_Area: 3
-  m_OverrideGenerateLinks: 0
-  m_GenerateLinks: 0
-  m_IgnoreFromBuild: 0
-  m_ApplyToChildren: 1
-  m_AffectedAgents: ffffffff
 --- !u!1 &915505231
 GameObject:
   m_ObjectHideFlags: 0
@@ -8981,8 +8942,8 @@ MonoBehaviour:
   deliveryReward: 200
   lossPenalty: 100
   deliveryTimeLimit: 30
-  scoreText: {fileID: 0}
-  timerText: {fileID: 0}
+  scoreText: {fileID: 2075649074}
+  timerText: {fileID: 71953906}
   pickupHoldTime: 2
   penaltyPerSecond: 5
   spawnCooldown: 2
@@ -19781,12 +19742,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: da5725e091ed34340b70cb45e7b321ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArrowNavigation
-  warningTextObject: {fileID: 2131063231}
   arrowVisualContainer: {fileID: 1342749469}
+  warningTextObject: {fileID: 2131063231}
   rotationSpeed: 8
-  sampleRadius: 5
-  deviationThreshold: 15
-  waypointReachRadius: 10
+  minLookAheadDistance: 5
+  offRoadTolerance: 3
 --- !u!1 &1646787100
 GameObject:
   m_ObjectHideFlags: 0
