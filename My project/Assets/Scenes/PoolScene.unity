@@ -19682,10 +19682,13 @@ MonoBehaviour:
   gameplayHUD: {fileID: 1006513635}
   points: {fileID: 2075649072}
   gameTimer: {fileID: 71953904}
+  mainBackgroundSprites:
+  - {fileID: 21300000, guid: ad0926f99da3f2f4f9122785f7eea377, type: 3}
+  - {fileID: 21300000, guid: c14c13c61d41a42448e30c50ea421a79, type: 3}
   gameOverText: {fileID: 182444097}
   scorePopupText: {fileID: 629049655}
   highScoreText: {fileID: 441648947}
-  pauseAlpha: 0.5
+  pauseAlpha: 0.3
   startGameButton: {fileID: 211468375}
   settingsButton: {fileID: 1431018069}
   resumeButton: {fileID: 1200441374}
