@@ -9255,7 +9255,7 @@ MonoBehaviour:
   maxAbsoluteSpeedKmH: 180
   maxSteeringAngle: 50
   minSteeringAngle: 10
-  brakeForce: 7000
+  brakeForce: 10000
   accelerationSmoothness: 1
   steeringSmoothness: 5
   centerOfMass: {fileID: 230978894}
@@ -9487,13 +9487,13 @@ MonoBehaviour:
   - {fileID: 1138573019}
   - {fileID: 1831593128}
   - {fileID: 2064613697}
-  lossDistance: 2.5
+  lossDistance: 3
   currentScore: 0
   deliveryReward: 200
-  lossPenalty: 100
+  lossPenalty: 200
   scoreText: {fileID: 2075649074}
   timerText: {fileID: 71953906}
-  secondsPerMeter: 0.1
+  secondsPerMeter: 0.08
   baseTimeBuffer: 15
   pickupHoldTime: 2
   penaltyPerSecond: 5
