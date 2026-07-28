@@ -105,7 +105,7 @@ public class CargoManager : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        // Если выехали из зоны ПОГРУЗКИ до того, как истекли 2 секунды
+        // Если выехали из зоны ПОГРУЗКИ 
         if (other.CompareTag("Pickup"))
         {
             if (pickupCoroutine != null)
@@ -114,7 +114,7 @@ public class CargoManager : MonoBehaviour
                 pickupCoroutine = null;
                 isLoadingCargo = false;
 
-                if (timerText != null) timerText.text = "Загрузка отменена!";
+                ShowTemporaryMessage("Загрузка отменена!", 2f);
             }
         }
     }
@@ -291,7 +291,7 @@ public class CargoManager : MonoBehaviour
             if (activeCargoPieces.Count == 0 && spawnedCargoRoot != null)
             {
                 isTimerRunning = false;
-                if (timerText != null) timerText.text = "Груз полностью утерян!";
+                ShowTemporaryMessage("Груз полностью утерян!", 2f);
                 if (spawnedCargoRoot != null) Destroy(spawnedCargoRoot);
                 ResetZones();
             }
@@ -334,7 +334,7 @@ public class CargoManager : MonoBehaviour
 
         currentScore += totalRewardEarned;
 
-        if (timerText != null) timerText.text = "Сдано: " + activeCargoPieces.Count + " из " + initialPieceCount;
+        ShowTemporaryMessage("Сдано: " + activeCargoPieces.Count + " из " + initialPieceCount, 2f);
         UpdateScoreUI();
 
         if (spawnedCargoRoot != null) Destroy(spawnedCargoRoot);
@@ -416,6 +416,33 @@ public class CargoManager : MonoBehaviour
         if (activeCargoPieces.Count > 0)
         {
             TimeOut(); // Используем метод TimeOut для снятия очков за оставшийся груз
+        }
+    }
+    private Coroutine clearMessageCoroutine;
+
+    // Умная функция для временных сообщений
+    private void ShowTemporaryMessage(string message, float delay = 2f)
+    {
+        if (timerText != null)
+        {
+            timerText.text = message;
+
+            // Если предыдущее сообщение еще висит - отменяем его удаление
+            if (clearMessageCoroutine != null) StopCoroutine(clearMessageCoroutine);
+
+            // Запускаем таймер удаления нового сообщения
+            clearMessageCoroutine = StartCoroutine(ClearMessageRoutine(delay));
+        }
+    }
+
+    private IEnumerator ClearMessageRoutine(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        // Очищаем текст только если сейчас не идет доставка и не идет загрузка
+        if (timerText != null && !isTimerRunning && !isLoadingCargo)
+        {
+            timerText.text = "";
         }
     }
 }
