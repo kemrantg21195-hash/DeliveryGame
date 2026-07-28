@@ -51,6 +51,14 @@ public class ArrowNavigation : MonoBehaviour
 
         if (isOffRoad) return;
 
+        // ѕередаем статус дороги в систему физики колес
+        DynamicWeatherSystem weatherSystem = Object.FindFirstObjectByType<DynamicWeatherSystem>();
+        if (weatherSystem != null)
+        {
+            weatherSystem.isPlayerOnRoad = !isOffRoad;
+        }
+
+
         // 2. »щем актуальную цель (Pickup или Dropoff)
         UpdateTarget();
 

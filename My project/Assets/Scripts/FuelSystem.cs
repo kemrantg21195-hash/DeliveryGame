@@ -72,8 +72,29 @@ public class CarFuelSystem : MonoBehaviour
     void FuelEmpty()
     {
         isOutofFuel = true;
-        Debug.LogWarning("Топливо закончилось!");
+        Debug.LogWarning("Топливо закончилось! Машина заглохла.");
+
+        // 1. Находим менеджер паузы на сцене
+        PauseManager pauseManager = Object.FindFirstObjectByType<PauseManager>();
+
+        // 2. Находим ваш менеджер грузов на сцене
+        CargoManager cargoManager = Object.FindFirstObjectByType<CargoManager>();
+
+        int scoresAtEnd = 0;
+
+        // Если менеджер грузов успешно найден, забираем из него очки
+        if (cargoManager != null)
+        {
+            scoresAtEnd = cargoManager.currentScore; // Подставляем вашу переменную очков
+        }
+
+        // 3. Отправляем очки в менеджер паузы и включаем экран Game Over
+        if (pauseManager != null)
+        {
+            pauseManager.TriggerGameOver(scoresAtEnd);
+        }
     }
+
 
     public void RefuelToMax()
     {
