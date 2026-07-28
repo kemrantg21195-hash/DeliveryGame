@@ -36,6 +36,10 @@ public class DynamicWeatherSystem : MonoBehaviour
     public Color rainGroundColor = new Color(0.25f, 0.25f, 0.25f);
     [Range(0.1f, 1f)] public float rainFrictionMultiplier = 0.5f; // 50% сцепления (скользкая дорога)
 
+    [Header("Настройки Бездорожья (Съезд на Plane)")]
+    [Range(0.1f, 1f)] public float offroadFrictionMultiplier = 0.4f; // 40% сцепления на траве/грязи
+    [HideInInspector] public bool isPlayerOnRoad = true;
+
     private bool isRainy = false;
     private float targetLightIntensity;
     private float targetFogDensity;
@@ -88,12 +92,11 @@ public class DynamicWeatherSystem : MonoBehaviour
     {
         float delta = Time.deltaTime * weatherTransitionSpeed;
 
-        // Лерпим интенсивность света, туман и звук
+        // Плавно меняем свет, туман и звук
         if (directionalLight != null) directionalLight.intensity = Mathf.Lerp(directionalLight.intensity, targetLightIntensity, delta);
         RenderSettings.fogDensity = Mathf.Lerp(RenderSettings.fogDensity, targetFogDensity, delta);
         if (rainAudioSource != null) rainAudioSource.volume = Mathf.Lerp(rainAudioSource.volume, targetVolume, delta);
 
-        // Лерпим цвета неба
         if (daySkyboxMaterial != null)
         {
             currentSkyColor = Color.Lerp(currentSkyColor, targetSkyColor, delta);
@@ -102,7 +105,16 @@ public class DynamicWeatherSystem : MonoBehaviour
             daySkyboxMaterial.SetColor(groundColorPropertyName, currentGroundColor);
         }
 
-        // ПЛАВНО ИЗМЕНЯЕМ СЦЕПЛЕНИЕ КОЛЕС С ДОРОГОЙ
+        // РАСЧЕТ ИТОГОВОГО СЦЕПЛЕНИЯ С УЧЕТОМ ПОГОДЫ И ДОРОГИ:
+        // Базовый зацеп зависит от погоды (1.0 в ясную, 0.5 в дождь)
+        targetFrictionMultiplier = isRainy ? rainFrictionMultiplier : clearFrictionMultiplier;
+
+        // Если машина съехала с дороги на Plane, дополнительно умножаем зацеп на коэффициент бездорожья
+        if (!isPlayerOnRoad)
+        {
+            targetFrictionMultiplier *= offroadFrictionMultiplier;
+        }
+
         currentFrictionMultiplier = Mathf.Lerp(currentFrictionMultiplier, targetFrictionMultiplier, delta);
         ApplyFrictionToWheels(currentFrictionMultiplier);
     }

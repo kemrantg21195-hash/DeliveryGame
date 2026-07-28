@@ -27,9 +27,13 @@ public class CargoManager : MonoBehaviour
     public int currentScore = 0;
     public int deliveryReward = 200;
     public int lossPenalty = 100;
-    public float deliveryTimeLimit = 30f;
     public TMP_Text scoreText;
     public TMP_Text timerText;
+
+    [Header("Умный таймер")]
+    public float secondsPerMeter = 0.5f; // Сколько секунд даем за каждый метр пути
+    public float baseTimeBuffer = 15f;   // Несгораемый запас времени (на разгон и парковку)
+    private float deliveryTimeLimit;     // Теперь это скрытая переменная, скрипт считает ее сам
 
     [Header("Настройки погрузки")]
     public float pickupHoldTime = 2f; // Сколько секунд нужно простоять в зоне
@@ -85,9 +89,12 @@ public class CargoManager : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // Если заехали на базу, груза нет, нет перезарядки и мы еще не загружаемся
         if (other.CompareTag("Pickup") && activeCargoPieces.Count == 0 && !isCooldown && !isLoadingCargo)
         {
+            // ЖЕСТКИЙ СБРОС: принудительно глушим старый таймер доставки!
+            isTimerRunning = false;
+            isLate = false;
+
             pickupCoroutine = StartCoroutine(PickupHoldRoutine());
         }
         else if (other.CompareTag("Dropoff") && activeCargoPieces.Count > 0)
@@ -139,38 +146,56 @@ public class CargoManager : MonoBehaviour
     {
         isCooldown = true;
 
-        // Выбираем случайный груз и спавним его
+        // 1. Выбираем случайный груз и спавним его
         int randomCargoIndex = Random.Range(0, cargoPrefabs.Length);
         spawnedCargoRoot = Instantiate(cargoPrefabs[randomCargoIndex], cargoSpawnPoint.position, cargoSpawnPoint.rotation);
 
-        // Ищем все физические кусочки (коробки) внутри заспавненного префаба
         Rigidbody[] pieces = spawnedCargoRoot.GetComponentsInChildren<Rigidbody>();
         activeCargoPieces.Clear();
 
+        // 2. Временно "приклеиваем" груз к кузову (чтобы он не улетел при спавне)
         foreach (Rigidbody rb in pieces)
         {
             rb.isKinematic = false;
             activeCargoPieces.Add(rb.gameObject);
 
-            // Временно прибиваем каждый кусочек к машине
             FixedJoint joint = rb.gameObject.AddComponent<FixedJoint>();
             joint.connectedBody = truckRigidbody;
         }
 
-        // Запоминаем, сколько кусочков было изначально, чтобы правильно делить награду/штраф
         initialPieceCount = activeCargoPieces.Count;
-        if (initialPieceCount == 0) initialPieceCount = 1; // Защита от деления на ноль
+        if (initialPieceCount == 0) initialPieceCount = 1;
 
+        // 3. Отключаем зону погрузки и выбираем финиш
         if (pickupZoneObject != null) pickupZoneObject.SetActive(false);
         SetRandomDropoffZone();
 
-        currentTimer = deliveryTimeLimit;
-        isTimerRunning = true;
+        // 4. --- УМНЫЙ ТАЙМЕР ---
+        float distance = 0f;
+        if (lastDropoffPoint != null)
+        {
+            distance = Vector3.Distance(transform.position, lastDropoffPoint.position);
+        }
 
-        // Ждем секунду для стабилизации физики
+        // Защита от нулевых значений в Инспекторе
+        if (baseTimeBuffer <= 0) baseTimeBuffer = 15f;
+        if (secondsPerMeter <= 0) secondsPerMeter = 0.5f;
+
+        // Высчитываем время на доставку
+        deliveryTimeLimit = baseTimeBuffer + (distance * secondsPerMeter);
+
+        // Отправляем отчет в консоль Unity
+        Debug.Log("🚚 Дистанция: " + Mathf.RoundToInt(distance) + "м. | Выдано времени: " + Mathf.RoundToInt(deliveryTimeLimit) + "с.");
+
+        // Подготавливаем таймер (но пока НЕ запускаем!)
+        isLate = false;
+        appliedTimePenalty = 0;
+        currentTimer = deliveryTimeLimit;
+
+        // 5. Ждем 1 секунду для стабилизации физики
         yield return new WaitForSeconds(1f);
 
-        // Снимаем крепления со всех коробок
+        // 6. Отклеиваем груз от кузова (теперь он может выпасть, если гнать слишком быстро)
         foreach (GameObject piece in activeCargoPieces)
         {
             if (piece != null)
@@ -180,19 +205,12 @@ public class CargoManager : MonoBehaviour
             }
         }
 
-        float remainingCooldown = Mathf.Max(0, spawnCooldown - 1f);
-
-        if (pickupZoneObject != null) pickupZoneObject.SetActive(false);
-        SetRandomDropoffZone();
-
-        // СБРОС И ЗАПУСК ТАЙМЕРА
-        isLate = false;
-        appliedTimePenalty = 0; // Сбрасываем счетчик штрафа!
-        currentTimer = deliveryTimeLimit;
+        // 7. ЗАПУСКАЕМ ТАЙМЕР ТОЛЬКО СЕЙЧАС (груз упал, физика работает)!
         isTimerRunning = true;
 
-        // Ждем секунду для стабилизации физики
-        yield return new WaitForSeconds(1f);
+        // 8. Ждем остаток перезарядки базы
+        float remainingCooldown = Mathf.Max(0, spawnCooldown - 1f);
+        if (remainingCooldown > 0) yield return new WaitForSeconds(remainingCooldown);
 
         isCooldown = false;
     }
