@@ -2,7 +2,7 @@
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
-using TMPro;
+using TMPro; // ОБЯЗАТЕЛЬНО для работы с TextMeshPro. Если у вас обычный Text, замените TMP_Text на Text.
 
 public class PauseManager : MonoBehaviour
 {
@@ -13,6 +13,10 @@ public class PauseManager : MonoBehaviour
     public GameObject gameplayHUD;
     public GameObject points;             // Элемент интерфейса очков
     public GameObject gameTimer;          // Элемент интерфейса со временем (часы/таймер)
+
+    [Header("Настройки фоновых изображений")]
+    // ⚡ НОВЫЙ МАССИВ: Перетащите сюда все ваши картинки из папки проекта
+    public Sprite[] mainBackgroundSprites;
 
     [Header("Конец игры (Топливо)")]
     public TMP_Text gameOverText;
@@ -58,25 +62,32 @@ public class PauseManager : MonoBehaviour
     {
         if (pauseMenuPanel != null) bgImage = pauseMenuPanel.GetComponent<Image>();
 
+        // ⚡ ЛОГИКА СЛУЧАЙНОГО ФОНА:
+        // Если массив картинок не пустой и компонент Image на панели найден
+        if (bgImage != null && mainBackgroundSprites != null && mainBackgroundSprites.Length > 0)
+        {
+            // Выбираем случайный индекс от 0 до количества картинок в списке
+            int randomIndex = Random.Range(0, mainBackgroundSprites.Length);
+
+            // Устанавливаем случайный спрайт на фон главного меню
+            bgImage.sprite = mainBackgroundSprites[randomIndex];
+        }
+
         // Обновляем текст рекорда в Главном Меню сразу при старте сцены
         UpdateHighScoreUI();
 
         // Проверяем, был ли это быстрый перезапуск через кнопку "Заново"?
         bool isQuickRestart = PlayerPrefs.GetInt(RESTART_FLAG_KEY, 0) == 1;
 
-        // ⚡ ИСПРАВЛЕННАЯ ЛОГИКА ОТОБРАЖЕНИЯ ПРИ СТАРТЕ СЦЕНЫ:
         if (isQuickRestart || PlayerPrefs.GetInt(SHOW_POPUP_KEY, 0) == 1)
         {
-            // Сбрасываем флаги
             PlayerPrefs.SetInt(SHOW_POPUP_KEY, 0);
             PlayerPrefs.SetInt(RESTART_FLAG_KEY, 0);
             PlayerPrefs.Save();
 
-            // Запускаем ТОЛЬКО рекорд на 3 секунды посреди экрана, игнорируя старый текст очков
             int recordToShow = PlayerPrefs.GetInt(HIGH_SCORE_KEY, 0);
             StartCoroutine(ShowScorePopupRoutine(recordToShow));
 
-            // Настраиваем состояние геймплея (минуя главное меню)
             isInMainMenu = false;
             isPaused = false;
             isGameOver = false;
@@ -92,7 +103,7 @@ public class PauseManager : MonoBehaviour
         }
         else
         {
-            // Стандартный запуск в Главное меню (Не рестарт)
+            // Стандартный запуск в Главное меню
             Time.timeScale = 0f;
             isInMainMenu = true;
             isPaused = true;
@@ -105,7 +116,6 @@ public class PauseManager : MonoBehaviour
             if (points != null) points.SetActive(false);
             if (gameTimer != null) gameTimer.SetActive(false);
 
-            // В главном меню плашка очков горит постоянно, показывая прошлый заезд
             if (scorePopupText != null)
             {
                 int lastScore = PlayerPrefs.GetInt(SAVED_SCORE_KEY, 0);
@@ -196,6 +206,7 @@ public class PauseManager : MonoBehaviour
             // Перезаписываем приватные очки паузы реальными очками из вашей игры перед сохранением
             currentScores = cargoManager.currentScore;
         }
+        PlayerPrefs.SetInt(SAVED_SCORE_KEY, currentScores);
 
         // 1. Сохраняем и проверяем рекорды (теперь тут точно будут реальные очки!)
         CheckAndSaveHighScore(currentScores);
@@ -252,7 +263,6 @@ public class PauseManager : MonoBehaviour
         }
     }
 
-    // Корутина трехсекундного отображения рекорда на экране
     IEnumerator ShowScorePopupRoutine(int scoreValue)
     {
         if (scorePopupText != null)
@@ -265,6 +275,7 @@ public class PauseManager : MonoBehaviour
             scorePopupText.gameObject.SetActive(false);
         }
     }
+
     public void PauseGame()
     {
         isPaused = true;
