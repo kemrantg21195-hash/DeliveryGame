@@ -9184,7 +9184,7 @@ AudioSource:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 0
+      value: 0.2
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -9308,9 +9308,9 @@ MonoBehaviour:
   brakeIntensity: 3
   brakeAudioSource: {fileID: 1774912331}
   audioFadeSpeed: 2
-  maxVolume: 0.4
-  loopStartSeconds: 3.8
-  loopEndSeconds: 4
+  maxVolume: 0.05
+  loopStartSeconds: 3.3
+  loopEndSeconds: 4.15
 --- !u!114 &963119395
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21780,8 +21780,8 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: a5a95c450afa32b4bb428bfa77cfb9ed, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 0.4
-  m_Pitch: 1
+  m_Volume: 0.2
+  m_Pitch: 1.2
   Loop: 0
   Mute: 0
   Spatialize: 0
@@ -21789,7 +21789,7 @@ AudioSource:
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
-  MaxDistance: 500
+  MaxDistance: 40
   Pan2D: 0
   rolloffMode: 0
   BypassEffects: 0
@@ -21824,7 +21824,7 @@ AudioSource:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 0
+      value: 0.6
       inSlope: 0
       outSlope: 0
       tangentMode: 0

@@ -57,33 +57,62 @@ public class CarBrakeLights : MonoBehaviour
 
     void Update()
     {
-        // Проверяем, нажата ли кнопка тормоза (стрелка вниз / пробел)
-        bool isBrakePressed = Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.Space);
+        // 1. Считываем нажатие клавиш
+        bool pressUp = Input.GetKey(KeyCode.UpArrow);
+        bool pressDown = Input.GetKey(KeyCode.DownArrow);
+        bool pressSpace = Input.GetKey(KeyCode.Space);
 
-        // Проверяем, движется ли машина вообще (чтобы тормоза не скрипели, когда машина намертво стоит)
-        bool isMoving = carRigidbody != null && carRigidbody.linearVelocity.magnitude > 0.5f;
+        // 2. Определяем реальную скорость машины
+        float currentSpeed = carRigidbody != null ? carRigidbody.linearVelocity.magnitude : 0f;
+        bool isMoving = currentSpeed > 0.5f;
 
-        if (isBrakePressed)
+        // Инициализируем флаги для звука и фар
+        bool shouldLightOn = false;
+        bool shouldPlaySound = false;
+
+        // 3. ОПРЕДЕЛЯЕМ НАПРАВЛЕНИЕ ДВИЖЕНИЯ (Вперед или Назад):
+        // Сравниваем вектор скорости linearVelocity с направлением носа машины transform.forward
+        // Если значение больше 0 — машина катится вперед. Если меньше 0 — катится задом.
+        bool isMovingForward = true;
+        if (carRigidbody != null)
         {
-            SetBrakeLightsState(true); // Фары загораются мгновенно при нажатии
+            float directionDot = Vector3.Dot(transform.forward, carRigidbody.linearVelocity.normalized);
+            isMovingForward = directionDot > 0f;
+        }
 
-            // Звук включается ТОЛЬКО если машина в движении
-            if (isMoving)
+        // 4. ЛОГИКА ДЛЯ РУЧНИКА (Пробел):
+        // Ручник всегда зажигает стопы и включает скрипт, если машина катится
+        if (pressSpace)
+        {
+            shouldLightOn = true;
+            if (isMoving) shouldPlaySound = true;
+        }
+        // 5. ЛОГИКА ДЛЯ СТРЕЛКИ ВНИЗ (Тормоз вперед / Газ назад):
+        else if (pressDown)
+        {
+            shouldLightOn = true; // Задние огни горят всегда при нажатии вниз (как габариты/стопы заднего хода)
+
+            // Звук тормозов срабатывает ТОЛЬКО если мы в этот момент физически катились вперед
+            if (isMoving && isMovingForward)
             {
-                ManageBrakeSound(true);
-            }
-            else
-            {
-                ManageBrakeSound(false); // Глушим звук, если затормозили до полной остановки
+                shouldPlaySound = true;
             }
         }
-        else
+        // 6. ЛОГИКА ДЛЯ СТРЕЛКИ ВВЕРХ (Газ вперед / Тормоз назад):
+        else if (pressUp)
         {
-            SetBrakeLightsState(false);
-            ManageBrakeSound(false);
+            // Если мы катимся задом, то стрелка вверх — это ТОРМОЖЕНИЕ
+            if (isMoving && !isMovingForward)
+            {
+                shouldLightOn = true; // Включаем стоп-огни при экстренном торможении на задней передаче
+                shouldPlaySound = true;
+            }
         }
+
+        // Применяем результаты расчетов к фарам и звуку
+        SetBrakeLightsState(shouldLightOn);
+        ManageBrakeSound(shouldPlaySound);
     }
-
     void ManageBrakeSound(bool shouldPlay)
     {
         if (brakeAudioSource == null || brakeAudioSource.clip == null) return;
