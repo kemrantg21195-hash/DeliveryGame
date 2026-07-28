@@ -1,36 +1,48 @@
-using System.Collections; // Добавьте эту строку!
+using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
 public class PickupController : MonoBehaviour
 {
     [Header("Настройки трансмиссии")]
-    [Tooltip("Скорость изменения оборотов. Чем выше, тем быстрее стрелка реагирует на переключения.")]
     public float rpmChangeSmoothness = 4000f;
     [Header("Настройки сцепления")]
-    [Tooltip("Время выжима сцепления в секундах (например, 0.25 секунды)")]
     public float clutchDropDuration = 0.25f;
-    private bool isClutchDisengaged = false; 
-    [Header("Настройки АБС")]
-    public bool useABS = true;               // Включить/выключить АБС
-    [Range(0.1f, 1f)]
-    public float absThreshold = 0.6f;        // Порог срабатывания проскальзывания (0.6 — колесо сильно скользит)
-    [Range(0.01f, 0.2f)]
-    public float absReleaseTime = 0.05f;     // На сколько секунд АБС «отпускает» тормоз при блокировке
+    private bool isClutchDisengaged = false;
 
-    public bool isAutomatic = true;          // Автоматическая КПП (true) или ручная (false)
-    public float[] gearRatios = { 3.5f, 2.7f, 1.8f, 1.3f, 1.0f, 0.8f }; // Передаточные числа (1-6 передачи)
-    public float reverseGearRatio = 3.0f;    // Передаточное число задней передачи
-    public float finalDriveRatio = 3.4f;     // Главная пара (дифференциал)
-    public float maxEngineRPM = 6000f;       // Максимальные обороты двигателя
-    public float minEngineRPM = 1000f;       // Холостые обороты двигателя
-    public float maxMotorTorque = 400f;      // Базовый крутящий момент мотора (теперь умножается на передачи)
+    [Header("Настройки АБС")]
+    public bool useABS = true;
+    [Tooltip("Минимальная скорость (км/ч), при которой работает АБС")]
+    public float absMinSpeedKmH = 20f;
+    [Range(0.1f, 1f)]
+    public float absThreshold = 0.6f;
+    [Range(0.01f, 0.2f)]
+    public float absReleaseTime = 0.05f;
+
+    public bool isAutomatic = true;
+    public float[] gearRatios = { 3.5f, 2.7f, 1.8f, 1.3f, 1.0f, 0.8f };
+    public float reverseGearRatio = 3.0f;
+    public float finalDriveRatio = 3.4f;
+    public float maxEngineRPM = 6000f;
+    public float minEngineRPM = 1000f;
+    public float maxMotorTorque = 400f;
 
     [Header("Настройки скорости и управления")]
-    public float maxAbsoluteSpeedKmH = 180f; // Абсолютный лимит скорости для машины
+    public float maxAbsoluteSpeedKmH = 180f;
     public float maxSteeringAngle = 40f;
     public float minSteeringAngle = 12f;
-    public float brakeForce = 4000f;
+
+    [Header("Тормозная система")]
+    [Tooltip("Сила торможения при нажатии S (обычный тормоз)")]
+    public float normalBrakeForce = 2500f;
+    [Tooltip("Сила торможения при нажатии Пробела (ручник/экстренное)")]
+    public float handbrakeForce = 6000f;
+
+    [Header("Система веса (Груз)")]
+    public CargoManager cargoManager;
+    [Range(0.1f, 1f)]
+    [Tooltip("На сколько процентов режется мощность при наличии груза (0.7 = 70% от мощности)")]
+    public float loadedAccelerationMultiplier = 0.7f;
 
     [Header("Плавность движения")]
     public float accelerationSmoothness = 1.2f;
@@ -51,17 +63,15 @@ public class PickupController : MonoBehaviour
     public Transform rearLeftMesh;
     public Transform rearRightMesh;
 
-    // Внутренние переменные физики и трансмиссии
     private float currentSteeringAngle;
     private float targetSteeringAngle;
     private float smoothedVerticalInput;
     private Rigidbody rb;
 
-    private int currentGear = 1;             // Текущая передача: -1 = Задняя, 0 = Нейтралка, 1-6 = Вперед
-    private float currentRPM;                // Текущие обороты двигателя (RPM)
-    private float currentSpeedKmH;           // Текущая скорость в км/ч
+    private int currentGear = 1;
+    private float currentRPM;
+    private float currentSpeedKmH;
 
-    // Свойства для чтения из других скриптов (например, для UI спидометра/тахометра)
     public int CurrentGear => currentGear;
     public float CurrentRPM => currentRPM;
 
@@ -73,13 +83,19 @@ public class PickupController : MonoBehaviour
         {
             rb.centerOfMass = centerOfMass.localPosition;
         }
+
+        if (cargoManager == null)
+        {
+            cargoManager = GetComponent<CargoManager>();
+            if (cargoManager == null) cargoManager = GetComponentInParent<CargoManager>();
+        }
     }
 
     private void FixedUpdate()
     {
         currentSpeedKmH = rb.linearVelocity.magnitude * 3.6f;
 
-        HandleGears(); // Логика работы коробки передач
+        HandleGears();
         HandleSteering();
         HandleMotorAndBraking();
         UpdateWheels();
@@ -90,7 +106,6 @@ public class PickupController : MonoBehaviour
         float rearWheelsRPM = (rearLeftCollider.rpm + rearRightCollider.rpm) / 2f;
         float targetRPM = minEngineRPM;
 
-        // Запоминаем передачу ПЕРЕД возможным переключением
         int previousGear = currentGear;
 
         if (currentGear == 0)
@@ -108,11 +123,9 @@ public class PickupController : MonoBehaviour
 
         targetRPM = Mathf.Clamp(targetRPM, minEngineRPM, maxEngineRPM);
 
-        // Если сцепление выжато, заставляем обороты падать быстрее к целевым (имитация сброса газа)
         float currentSmoothness = isClutchDisengaged ? rpmChangeSmoothness * 1.5f : rpmChangeSmoothness;
         currentRPM = Mathf.MoveTowards(currentRPM, targetRPM, Time.fixedDeltaTime * currentSmoothness);
 
-        // Логика переключения передач (Автомат)
         if (isAutomatic)
         {
             float forwardSpeed = transform.InverseTransformDirection(rb.linearVelocity).z;
@@ -137,7 +150,6 @@ public class PickupController : MonoBehaviour
         }
         else
         {
-            // Ручное переключение (E - Вверх, Q - Вниз) с защитой от спама во время выжима
             if (!isClutchDisengaged)
             {
                 if (Input.GetKeyDown(KeyCode.E) && currentGear < gearRatios.Length) currentGear++;
@@ -145,22 +157,18 @@ public class PickupController : MonoBehaviour
             }
         }
 
-        // ⚡ ПРОВЕРКА: Если передача изменилась, запускаем паузу сцепления
         if (currentGear != previousGear && previousGear != 0 && currentGear != 0)
         {
-            // Запускаем корутину через MonoBehaviour, так как FixedUpdate не умеет ждать
             StartCoroutine(ClutchShiftRoutine());
         }
     }
 
-    // Корутина временного разрыва связи мотора и колес
     private IEnumerator ClutchShiftRoutine()
     {
         isClutchDisengaged = true;
         yield return new WaitForSeconds(clutchDropDuration);
         isClutchDisengaged = false;
     }
-
 
     private void HandleMotorAndBraking()
     {
@@ -171,24 +179,26 @@ public class PickupController : MonoBehaviour
         float currentMotorTorque = 0f;
         float currentBrakeForce = 0f;
 
-        // Определяем, хочет ли игрок тормозить (зажат пробел или стрелка назад при движении вперед)
-        bool isBrakingInput = Input.GetKey(KeyCode.Space) || (targetVerticalInput < 0 && forwardSpeed > 0.5f) || (targetVerticalInput > 0 && forwardSpeed < -0.5f);
+        bool isHandbrakePressed = Input.GetKey(KeyCode.Space);
+        bool isBrakingInput = isHandbrakePressed || (targetVerticalInput < 0 && forwardSpeed > 0.5f) || (targetVerticalInput > 0 && forwardSpeed < -0.5f);
 
-        if (Input.GetKey(KeyCode.Space))
+        // --- ЛОГИКА ТОРМОЖЕНИЯ ---
+        if (isHandbrakePressed)
         {
-            currentBrakeForce = brakeForce;
+            // Жесткий тормоз (ручник)
+            currentBrakeForce = handbrakeForce;
             smoothedVerticalInput = 0f;
         }
         else
         {
             if (targetVerticalInput > 0)
             {
-                if (forwardSpeed < -0.5f) currentBrakeForce = brakeForce;
+                if (forwardSpeed < -0.5f) currentBrakeForce = normalBrakeForce;
                 else currentMotorTorque = CalculateTorque(smoothedVerticalInput);
             }
             else if (targetVerticalInput < 0)
             {
-                if (forwardSpeed > 0.5f) currentBrakeForce = brakeForce;
+                if (forwardSpeed > 0.5f) currentBrakeForce = normalBrakeForce;
                 else currentMotorTorque = CalculateTorque(smoothedVerticalInput);
             }
             else
@@ -203,59 +213,50 @@ public class PickupController : MonoBehaviour
             currentMotorTorque = 0f;
         }
 
-        // --- РАБОТА СИСТЕМЫ АБС ---
-        // Изначально распределяем тормозное усилие на все колеса
         float fL_Brake = currentBrakeForce;
         float fR_Brake = currentBrakeForce;
         float rL_Brake = currentBrakeForce;
         float rR_Brake = currentBrakeForce;
 
-        // Если игрок нажал на тормоз и АБС включена в инспекторе
-        if (isBrakingInput && useABS)
+        // --- РАБОТА СИСТЕМЫ АБС ---
+        // АБС работает только если: включена в настройках + игрок тормозит + скорость выше минимальной + ручник НЕ нажат
+        bool canUseABS = useABS && isBrakingInput && (currentSpeedKmH >= absMinSpeedKmH) && !isHandbrakePressed;
+
+        if (canUseABS)
         {
-            // Проверяем каждое колесо индивидуально. Если оно заблокировано — снижаем его тормоз до нуля
             if (CheckWheelLock(frontLeftCollider)) fL_Brake = 0f;
             if (CheckWheelLock(frontRightCollider)) fR_Brake = 0f;
             if (CheckWheelLock(rearLeftCollider)) rL_Brake = 0f;
             if (CheckWheelLock(rearRightCollider)) rR_Brake = 0f;
         }
 
-        // Применяем крутящий момент (4WD)
         frontLeftCollider.motorTorque = currentMotorTorque;
         frontRightCollider.motorTorque = currentMotorTorque;
         rearLeftCollider.motorTorque = currentMotorTorque;
         rearRightCollider.motorTorque = currentMotorTorque;
 
-        // Применяем финальное тормозное усилие (с учетом корректировок АБС)
         frontLeftCollider.brakeTorque = fL_Brake;
         frontRightCollider.brakeTorque = fR_Brake;
         rearLeftCollider.brakeTorque = rL_Brake;
         rearRightCollider.brakeTorque = rR_Brake;
     }
 
-    // Вспомогательный метод для проверки блокировки конкретного колеса
     private bool CheckWheelLock(WheelCollider collider)
     {
         WheelHit hit;
-        // Запрашиваем у Unity физические данные о контакте колеса с дорогой
         if (collider.GetGroundHit(out hit))
         {
-            // forwardSlip уходит в минус при жестком торможении. 
-            // Если абсолютное значение скольжения больше порога (absThreshold), колесо заблокировано юзом!
             if (Mathf.Abs(hit.forwardSlip) > absThreshold)
             {
-                return true; // АБС должна вмешаться и отпустить тормоз
+                return true;
             }
         }
         return false;
     }
 
-    // Расчет финального крутящего момента с учетом выбранной передачи
     private float CalculateTorque(float input)
     {
-        // ⚡ ИСПРАВЛЕНИЕ: Если сцепление выжато, момент равен 0 (мотор отсоединен от колес)
         if (isClutchDisengaged) return 0f;
-
         if (currentRPM >= maxEngineRPM - 100f) return 0f;
 
         float totalRatio = 0f;
@@ -264,15 +265,20 @@ public class PickupController : MonoBehaviour
         else if (currentGear > 0) totalRatio = gearRatios[currentGear - 1] * finalDriveRatio;
         else return 0f;
 
-        return input * maxMotorTorque * totalRatio;
-    }
+        float rawTorque = input * maxMotorTorque * totalRatio;
 
+        if (cargoManager != null && cargoManager.HasCargo())
+        {
+            rawTorque *= loadedAccelerationMultiplier;
+        }
+
+        return rawTorque;
+    }
 
     private void HandleSteering()
     {
         float horizontalInput = Input.GetAxis("Horizontal");
 
-        // Динамический угол поворота в зависимости от скорости автомобиля
         float speedFactor = Mathf.Clamp01(currentSpeedKmH / 80f);
         float dynamicMaxSteerAngle = Mathf.Lerp(maxSteeringAngle, minSteeringAngle, speedFactor);
 
