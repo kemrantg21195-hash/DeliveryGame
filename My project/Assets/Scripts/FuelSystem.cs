@@ -1,20 +1,24 @@
-using UnityEngine;
-using UnityEngine.UI; // ОБЯЗАТЕЛЬНО: добавляем эту строчку для работы с UI
+п»їusing UnityEngine;
+using UnityEngine.UI;
 
 public class CarFuelSystem : MonoBehaviour
 {
-    [Header("Параметры топлива")]
+    [Header("РџР°СЂР°РјРµС‚СЂС‹ С‚РѕРїР»РёРІР°")]
     public float maxFuel = 100f;
     public float currentFuel;
 
-    [Header("Настройки расхода")]
+    [Header("РќР°СЃС‚СЂРѕР№РєРё СЂР°СЃС…РѕРґР°")]
     public float idleConsumption = 0.05f;
     public float maxGasConsumption = 0.5f;
     public float rpmFactor = 0.0005f;
 
-    [Header("Ссылки на компоненты")]
+    [Header("РЎСЃС‹Р»РєРё РЅР° РєРѕРјРїРѕРЅРµРЅС‚С‹")]
     public WheelCollider[] wheelColliders;
-    public Slider fuelSlider;             // Сюда перетащим наш UI Slider из Canvas
+    public Slider fuelSlider;
+
+    [Header("РџСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ Рѕ РЅРёР·РєРѕРј СѓСЂРѕРІРЅРµ")]
+    public GameObject lowFuelWarningUI;   // вљЎ РЎСЋРґР° РїРµСЂРµС‚Р°С‰РёРј С‚РµРєСЃС‚ РёР»Рё РёРєРѕРЅРєСѓ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏ РёР· Canvas
+    private float flashTimer = 0f;        // РўР°Р№РјРµСЂ РґР»СЏ РјРёРіР°РЅРёСЏ
 
     private bool isOutofFuel = false;
 
@@ -22,22 +26,24 @@ public class CarFuelSystem : MonoBehaviour
     {
         currentFuel = maxFuel;
 
-        // Инициализируем UI шкалу при старте
         if (fuelSlider != null)
         {
             fuelSlider.maxValue = maxFuel;
             fuelSlider.value = currentFuel;
         }
+
+        // Р’С‹РєР»СЋС‡Р°РµРј РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ РЅР° СЃС‚Р°СЂС‚Рµ
+        if (lowFuelWarningUI != null) lowFuelWarningUI.SetActive(false);
     }
 
     void Update()
     {
         if (isOutofFuel) return;
 
-        // Расход заведенного мотора
+        // Р Р°СЃС…РѕРґ Р·Р°РІРµРґРµРЅРЅРѕРіРѕ РјРѕС‚РѕСЂР°
         float currentConsumption = idleConsumption;
 
-        // Считываем обороты
+        // РЎС‡РёС‚С‹РІР°РµРј РѕР±РѕСЂРѕС‚С‹
         float totalRPM = 0f;
         foreach (WheelCollider wheel in wheelColliders)
         {
@@ -46,23 +52,45 @@ public class CarFuelSystem : MonoBehaviour
         float averageRPM = totalRPM / (wheelColliders.Length > 0 ? wheelColliders.Length : 1);
         currentConsumption += averageRPM * rpmFactor;
 
-        // Расход при нажатии газа
+        // Р Р°СЃС…РѕРґ РїСЂРё РЅР°Р¶Р°С‚РёРё РіР°Р·Р°
         if (Input.GetKey(KeyCode.UpArrow))
         {
             currentConsumption += maxGasConsumption;
         }
 
-        // Уменьшаем топливо
+        // РЈРјРµРЅСЊС€Р°РµРј С‚РѕРїР»РёРІРѕ
         currentFuel -= currentConsumption * Time.deltaTime;
         currentFuel = Mathf.Clamp(currentFuel, 0f, maxFuel);
 
-        // ОБНОВЛЯЕМ ВЕРТИКАЛЬНУЮ ШКАЛУ НА ЭКРАНЕ
         if (fuelSlider != null)
         {
             fuelSlider.value = currentFuel;
         }
 
-        // Проверяем, не закончилось ли топливо
+        // вљЎ Р›РћР“РРљРђ РњРР“РђРќРРЇ РџР Р•Р”РЈРџР Р•Р–Р”Р•РќРРЇ
+        if (lowFuelWarningUI != null)
+        {
+            // РџСЂРѕРІРµСЂСЏРµРј, РѕСЃС‚Р°Р»РѕСЃСЊ Р»Рё РјРµРЅСЊС€Рµ 30% С‚РѕРїР»РёРІР°
+            if (currentFuel / maxFuel < 0.3f)
+            {
+                flashTimer += Time.deltaTime;
+
+                // РџРµСЂРµРєР»СЋС‡Р°РµРј СЃРѕСЃС‚РѕСЏРЅРёРµ РєР°Р¶РґСѓСЋ 1 СЃРµРєСѓРЅРґСѓ
+                if (flashTimer >= 1f)
+                {
+                    flashTimer = 0f;
+                    lowFuelWarningUI.SetActive(!lowFuelWarningUI.activeSelf);
+                }
+            }
+            else
+            {
+                // Р•СЃР»Рё С‚РѕРїР»РёРІР° Р±РѕР»СЊС€Рµ 30%, С‚РѕС‡РЅРѕ РІС‹РєР»СЋС‡Р°РµРј РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ Рё СЃР±СЂР°СЃС‹РІР°РµРј С‚Р°Р№РјРµСЂ
+                if (lowFuelWarningUI.activeSelf) lowFuelWarningUI.SetActive(false);
+                flashTimer = 0f;
+            }
+        }
+
+        // РџСЂРѕРІРµСЂСЏРµРј, РЅРµ Р·Р°РєРѕРЅС‡РёР»РѕСЃСЊ Р»Рё С‚РѕРїР»РёРІРѕ
         if (currentFuel <= 0f)
         {
             FuelEmpty();
@@ -72,40 +100,42 @@ public class CarFuelSystem : MonoBehaviour
     void FuelEmpty()
     {
         isOutofFuel = true;
-        Debug.LogWarning("Топливо закончилось! Машина заглохла.");
 
-        // 1. Находим менеджер паузы на сцене
+        // РћС‚РєР»СЋС‡Р°РµРј РјРёРіР°Р»РєСѓ, С‡С‚РѕР±С‹ РѕРЅР° РЅРµ РІРёСЃРµР»Р° РЅР° СЌРєСЂР°РЅРµ Game Over
+        if (lowFuelWarningUI != null) lowFuelWarningUI.SetActive(false);
+
+        Debug.LogWarning("РўРѕРїР»РёРІРѕ Р·Р°РєРѕРЅС‡РёР»РѕСЃСЊ! РњР°С€РёРЅР° Р·Р°РіР»РѕС…Р»Р°.");
+
         PauseManager pauseManager = Object.FindFirstObjectByType<PauseManager>();
-
-        // 2. Находим ваш менеджер грузов на сцене
         CargoManager cargoManager = Object.FindFirstObjectByType<CargoManager>();
 
         int scoresAtEnd = 0;
 
-        // Если менеджер грузов успешно найден, забираем из него очки
         if (cargoManager != null)
         {
-            scoresAtEnd = cargoManager.currentScore; // Подставляем вашу переменную очков
+            scoresAtEnd = cargoManager.currentScore;
         }
 
-        // 3. Отправляем очки в менеджер паузы и включаем экран Game Over
         if (pauseManager != null)
         {
             pauseManager.TriggerGameOver(scoresAtEnd);
         }
     }
 
-
     public void RefuelToMax()
     {
         currentFuel = maxFuel;
         isOutofFuel = false;
 
-        // Обновляем шкалу при заправке
         if (fuelSlider != null)
         {
             fuelSlider.value = currentFuel;
         }
-        Debug.Log("Бак полностью заправлен!");
+
+        // РџСЂРё Р·Р°РїСЂР°РІРєРµ СЃСЂР°Р·Сѓ СѓР±РёСЂР°РµРј РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ
+        if (lowFuelWarningUI != null) lowFuelWarningUI.SetActive(false);
+        flashTimer = 0f;
+
+        Debug.Log("Р‘Р°Рє РїРѕР»РЅРѕСЃС‚СЊСЋ Р·Р°РїСЂР°РІР»РµРЅ!");
     }
 }

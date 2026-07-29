@@ -423,7 +423,7 @@ public class CargoManager : MonoBehaviour
         // Выводим результат на экран
         if (resultText != null)
         {
-            resultText.text = "СМЕНА ОКОНЧЕНА!\n\nТвой результат: " + medalName + "\n(" + customMessage + ")\n\nИтоговый счет: " + currentScore;
+            resultText.text = "СМЕНА ОКОНЧЕНА!\n\nТвой результат: " + medalName + "\n" + customMessage + "\n\nИтоговый счет: " + currentScore;
         }
 
         if (medalImage != null) medalImage.SetActive(showMedalImage);

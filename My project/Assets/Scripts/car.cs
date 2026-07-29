@@ -37,6 +37,8 @@ public class PickupController : MonoBehaviour
     public float normalBrakeForce = 2500f;
     [Tooltip("Сила торможения при нажатии Пробела (ручник/экстренное)")]
     public float handbrakeForce = 6000f;
+    [Tooltip("Торможение двигателем (когда газ отпущен)")]
+    public float idleBrakeForce = 400f;
 
     [Header("Система веса (Груз)")]
     public CargoManager cargoManager;
@@ -204,7 +206,9 @@ public class PickupController : MonoBehaviour
             else
             {
                 smoothedVerticalInput = Mathf.MoveTowards(smoothedVerticalInput, 0f, Time.fixedDeltaTime * accelerationSmoothness * 2f);
-                currentBrakeForce = 20f;
+
+                // ⚡ Теперь применяем сопротивление двигателя вместо слабого трения
+                currentBrakeForce = idleBrakeForce;
             }
         }
 
