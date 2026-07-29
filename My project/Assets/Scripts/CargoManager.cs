@@ -1,10 +1,10 @@
 ﻿using UnityEngine;
-using TMPro;
-using System.Collections.Generic;
+using UnityEngine.UI;
 using System.Collections;
+using System.Collections.Generic;
+using TMPro; // ОБЯЗАТЕЛЬНО для работы с TextMeshPro
 
 public class CargoManager : MonoBehaviour
-
 {
     [Header("Ссылки на объекты")]
     public GameObject[] cargoPrefabs; // Массив разных грузов
@@ -47,8 +47,7 @@ public class CargoManager : MonoBehaviour
     [Header("Защита от багов")]
     public float spawnCooldown = 2f;
 
-    // НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ МНОЖЕСТВЕННОГО ГРУЗА
-    private GameObject spawnedCargoRoot; // Родительский объект заспавненного груза
+    private GameObject spawnedCargoRoot;
     private List<GameObject> activeCargoPieces = new List<GameObject>(); // Список всех коробок в кузове
     private int initialPieceCount = 1; // Сколько коробок было изначально
 
@@ -60,13 +59,15 @@ public class CargoManager : MonoBehaviour
     private Transform currentPickupPoint;
     private Transform lastDropoffPoint;
 
+    // Временная переменная для очистки сообщений
+    private Coroutine clearMessageCoroutine;
+
     private void Start()
     {
         truckRigidbody = GetComponent<Rigidbody>();
 
         if (dropoffZoneObject != null) dropoffZoneObject.SetActive(false);
         if (dropoffVisual != null) dropoffVisual.SetActive(false);
-
         SetFirstPickupZone();
 
         if (timerText != null) timerText.text = "";
@@ -77,7 +78,6 @@ public class CargoManager : MonoBehaviour
     {
         if (pickupSpawnPoints != null && pickupSpawnPoints.Length > 0 && pickupZoneObject != null)
         {
-            // Выбираем случайный индекс при самом первом старте
             int index = Random.Range(0, pickupSpawnPoints.Length);
             currentPickupPoint = pickupSpawnPoints[index];
 
@@ -91,7 +91,6 @@ public class CargoManager : MonoBehaviour
     {
         if (other.CompareTag("Pickup") && activeCargoPieces.Count == 0 && !isCooldown && !isLoadingCargo)
         {
-            // ЖЕСТКИЙ СБРОС: принудительно глушим старый таймер доставки!
             isTimerRunning = false;
             isLate = false;
 
@@ -105,7 +104,6 @@ public class CargoManager : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        // Если выехали из зоны ПОГРУЗКИ 
         if (other.CompareTag("Pickup"))
         {
             if (pickupCoroutine != null)
@@ -118,12 +116,11 @@ public class CargoManager : MonoBehaviour
             }
         }
     }
+
     private IEnumerator PickupHoldRoutine()
     {
         isLoadingCargo = true;
         float timer = pickupHoldTime;
-
-        // Отсчитываем 2 секунды с отображением на экране
         while (timer > 0)
         {
             if (timerText != null)
@@ -131,10 +128,9 @@ public class CargoManager : MonoBehaviour
                 timerText.text = "Загрузка: " + timer.ToString("F1") + "с";
             }
             timer -= Time.deltaTime;
-            yield return null; // Ждем следующий кадр
+            yield return null;
         }
 
-        // Если выдержали 2 секунды — сбрасываем статус и спавним груз!
         if (timerText != null) timerText.text = "";
         isLoadingCargo = false;
         pickupCoroutine = null;
@@ -142,90 +138,84 @@ public class CargoManager : MonoBehaviour
         StartCoroutine(SpawnCargoRoutine());
     }
 
+    // ⚡ ИСПРАВЛЕННЫЙ МЕТОД ПОГРУЗКИ (БЕЗЗВУЧНЫЙ СПАВН)
     private IEnumerator SpawnCargoRoutine()
     {
         isCooldown = true;
-
-        // 1. Выбираем случайный груз и спавним его
         int randomCargoIndex = Random.Range(0, cargoPrefabs.Length);
+
+        // Спавним корневой объект груза
         spawnedCargoRoot = Instantiate(cargoPrefabs[randomCargoIndex], cargoSpawnPoint.position, cargoSpawnPoint.rotation);
 
         Rigidbody[] pieces = spawnedCargoRoot.GetComponentsInChildren<Rigidbody>();
         activeCargoPieces.Clear();
 
-        // 2. Временно "приклеиваем" груз к кузову (чтобы он не улетел при спавне)
         foreach (Rigidbody rb in pieces)
         {
-            rb.isKinematic = false;
+            // ЗАЩИТА 1: Полностью выключаем звук удара на коробке во время спавна, чтобы она не гремела
+            AudioSource boxAudio = rb.gameObject.GetComponent<AudioSource>();
+            if (boxAudio != null) boxAudio.enabled = false;
+
+            // Также выключим кастомный скрипт звука удара (если он у вас есть на коробках)
+            MonoBehaviour impactScript = rb.gameObject.GetComponent("CarCollisionSound") as MonoBehaviour;
+            if (impactScript != null) impactScript.enabled = false;
+
+            // ЗАЩИТА 2: Временно включаем кинематику, чтобы коробки не падали рывком, создавая физический удар
+            rb.isKinematic = true;
             activeCargoPieces.Add(rb.gameObject);
 
+            // Мягко привязываем суставом к кузову машины
             FixedJoint joint = rb.gameObject.AddComponent<FixedJoint>();
             joint.connectedBody = truckRigidbody;
+
+            // Отключаем кинематику обратно, теперь они плавно соединены с машиной без падения
+            rb.isKinematic = false;
         }
 
         initialPieceCount = activeCargoPieces.Count;
         if (initialPieceCount == 0) initialPieceCount = 1;
-
-        // 3. Отключаем зону погрузки и выбираем финиш
         if (pickupZoneObject != null) pickupZoneObject.SetActive(false);
         SetRandomDropoffZone();
 
-        // 4. --- УМНЫЙ ТАЙМЕР ---
         float distance = 0f;
         if (lastDropoffPoint != null)
         {
             distance = Vector3.Distance(transform.position, lastDropoffPoint.position);
         }
 
-        // Защита от нулевых значений в Инспекторе
         if (baseTimeBuffer <= 0) baseTimeBuffer = 15f;
         if (secondsPerMeter <= 0) secondsPerMeter = 0.5f;
-
-        // Высчитываем время на доставку
         deliveryTimeLimit = baseTimeBuffer + (distance * secondsPerMeter);
-
-        // Отправляем отчет в консоль Unity
         Debug.Log("🚚 Дистанция: " + Mathf.RoundToInt(distance) + "м. | Выдано времени: " + Mathf.RoundToInt(deliveryTimeLimit) + "с.");
 
-        // Подготавливаем таймер (но пока НЕ запускаем!)
         isLate = false;
         appliedTimePenalty = 0;
         currentTimer = deliveryTimeLimit;
 
-        // 5. Ждем 1 секунду для стабилизации физики
+        // Ждем 1 секунду утряски груза на суставах в полной тишине
         yield return new WaitForSeconds(1f);
 
-        // 6. Отклеиваем груз от кузова (теперь он может выпасть, если гнать слишком быстро)
         foreach (GameObject piece in activeCargoPieces)
         {
             if (piece != null)
             {
                 FixedJoint joint = piece.GetComponent<FixedJoint>();
                 if (joint != null) Destroy(joint);
+
+                // ⚡ ВКЛЮЧАЕМ ФИЗИЧЕСКИЙ ЗВУК ОБРАТНО: Теперь, если машина врежется во время езды, коробки загремят!
+                AudioSource boxAudio = piece.GetComponent<AudioSource>();
+                if (boxAudio != null) boxAudio.enabled = true;
+
+                MonoBehaviour impactScript = piece.GetComponent("CargoCollisionSound") as MonoBehaviour;
+                if (impactScript != null) impactScript.enabled = true;
             }
         }
 
-        // 7. ЗАПУСКАЕМ ТАЙМЕР ТОЛЬКО СЕЙЧАС (груз упал, физика работает)!
         isTimerRunning = true;
-
-        // 8. Ждем остаток перезарядки базы
         float remainingCooldown = Mathf.Max(0, spawnCooldown - 1f);
         if (remainingCooldown > 0) yield return new WaitForSeconds(remainingCooldown);
 
         isCooldown = false;
-    }
-    private void MarkAsLate()
-    {
-        isLate = true;
-        isTimerRunning = false; // Останавливаем таймер
-        if (timerText != null) timerText.text = "Опоздание!";
-
-        // Списываем штраф (например, стандартный lossPenalty)
-        currentScore -= lossPenalty;
-        UpdateScoreUI();
-
-        Debug.Log("Штраф за время начислен, но груз всё еще можно сдать!");
-        // Заметь: мы НЕ удаляем spawnedCargoRoot и НЕ вызываем ResetZones()
     }
 
     private void Update()
@@ -236,29 +226,21 @@ public class CargoManager : MonoBehaviour
 
             if (currentTimer > 0)
             {
-                // Если время еще есть, просто показываем его
                 if (timerText != null) timerText.text = "Время: " + Mathf.CeilToInt(currentTimer) + "с";
             }
             else
             {
                 isLate = true;
-
-                // Считаем, сколько секунд мы уже едем в минус (убираем минус у числа)
                 float secondsLate = -currentTimer;
-
-                // Высчитываем, каким ДОЛЖЕН БЫТЬ штраф на данный момент
                 int totalExpectedPenalty = Mathf.FloorToInt(secondsLate * penaltyPerSecond);
 
-                // Ограничиваем максимальный штраф стоимостью доставки
                 if (totalExpectedPenalty > deliveryReward)
                 {
                     totalExpectedPenalty = deliveryReward;
                 }
 
-                // Вычисляем разницу: накопились ли новые очки штрафа с прошлого кадра?
                 int penaltyToApply = totalExpectedPenalty - appliedTimePenalty;
 
-                // Если да, списываем их в реальном времени!
                 if (penaltyToApply > 0)
                 {
                     currentScore -= penaltyToApply;
@@ -266,15 +248,12 @@ public class CargoManager : MonoBehaviour
                     UpdateScoreUI();
                 }
 
-                // Показываем нарастающий штраф на экране, чтобы нагнать паники
                 if (timerText != null) timerText.text = "Опоздание: -" + appliedTimePenalty;
             }
         }
 
-        // ПРОВЕРКА ВЫПАДЕНИЯ ДЛЯ КАЖДОЙ КОРОБКИ ОТДЕЛЬНО
         if (activeCargoPieces.Count > 0)
         {
-            // Проходим по списку с конца, чтобы безопасно удалять элементы
             for (int i = activeCargoPieces.Count - 1; i >= 0; i--)
             {
                 GameObject piece = activeCargoPieces[i];
@@ -287,7 +266,6 @@ public class CargoManager : MonoBehaviour
                 }
             }
 
-            // Если выпали вообще все коробки - отменяем рейс
             if (activeCargoPieces.Count == 0 && spawnedCargoRoot != null)
             {
                 isTimerRunning = false;
@@ -297,6 +275,8 @@ public class CargoManager : MonoBehaviour
             }
         }
     }
+
+
 
     private void LoseSinglePiece(GameObject piece)
     {
@@ -418,7 +398,6 @@ public class CargoManager : MonoBehaviour
             TimeOut(); // Используем метод TimeOut для снятия очков за оставшийся груз
         }
     }
-    private Coroutine clearMessageCoroutine;
 
     // Умная функция для временных сообщений
     private void ShowTemporaryMessage(string message, float delay = 2f)

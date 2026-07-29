@@ -13,18 +13,26 @@ public class PauseManager : MonoBehaviour
     public GameObject gameplayHUD;
     public GameObject points;             // Элемент интерфейса очков
     public GameObject gameTimer;          // Элемент интерфейса со временем (часы/таймер)
+    public GameObject warningText;        // ⚡ НОВАЯ ССЫЛКА: Перетащите сюда ваш Warning Text из Canvas
 
     [Header("Настройки фоновых изображений")]
-    // ⚡ НОВЫЙ МАССИВ: Перетащите сюда все ваши картинки из папки проекта
     public Sprite[] mainBackgroundSprites;
+
+    [Header("Музыкальная система")]
+    public AudioSource musicAudioSource;
+    public AudioClip menuMusicClip;
+    public AudioClip[] gameplayMusicClips;
+    public Slider musicVolumeSlider;
+    private int currentGameplayTrackIndex = 0;
+    private float currentVolumeValue = 1f;
 
     [Header("Конец игры (Топливо)")]
     public TMP_Text gameOverText;
     private int currentScores = 0;
 
     [Header("Настройки сохранения и рекордов")]
-    public TMP_Text scorePopupText;       // Плашка рекорда (вспыхивает на 3 секунды при старте)
-    public TMP_Text highScoreText;        // Текст "Лучший результат: Х" в Главном Меню
+    public TMP_Text scorePopupText;
+    public TMP_Text highScoreText;
     private const string HIGH_SCORE_KEY = "PlayerHighScore";
 
     [Header("Настройки прозрачности фона")]
@@ -51,9 +59,13 @@ public class PauseManager : MonoBehaviour
     private bool isInMainMenu = true;
     private bool isGameOver = false;
 
+    // Технический флаг, чтобы скрипт помнил: горело ли предупреждение до нажатия Esc
+    private bool wasWarningActiveBeforePause = false;
+
     private const string ABS_KEY = "Setting_ABS";
     private const string TRANSMISSION_KEY = "Setting_Transmission";
     private const string HUD_KEY = "Setting_HUD";
+    private const string MUSIC_VOLUME_KEY = "Setting_MusicVolume";
     private const string RESTART_FLAG_KEY = "QuickRestartActive";
     private const string SAVED_SCORE_KEY = "LastSavedScore";
     private const string SHOW_POPUP_KEY = "ShowPopupNextScene";
@@ -62,22 +74,21 @@ public class PauseManager : MonoBehaviour
     {
         if (pauseMenuPanel != null) bgImage = pauseMenuPanel.GetComponent<Image>();
 
-        // ⚡ ЛОГИКА СЛУЧАЙНОГО ФОНА:
-        // Если массив картинок не пустой и компонент Image на панели найден
+        // Логика случайного фона
         if (bgImage != null && mainBackgroundSprites != null && mainBackgroundSprites.Length > 0)
         {
-            // Выбираем случайный индекс от 0 до количества картинок в списке
             int randomIndex = Random.Range(0, mainBackgroundSprites.Length);
-
-            // Устанавливаем случайный спрайт на фон главного меню
             bgImage.sprite = mainBackgroundSprites[randomIndex];
         }
 
-        // Обновляем текст рекорда в Главном Меню сразу при старте сцены
         UpdateHighScoreUI();
 
-        // Проверяем, был ли это быстрый перезапуск через кнопку "Заново"?
+        // Был ли это быстрый перезапуск через кнопку "Заново"?
         bool isQuickRestart = PlayerPrefs.GetInt(RESTART_FLAG_KEY, 0) == 1;
+
+        if (musicVolumeSlider != null) musicVolumeSlider.onValueChanged.AddListener(SetMusicVolume);
+
+        LoadAndApplySettings();
 
         if (isQuickRestart || PlayerPrefs.GetInt(SHOW_POPUP_KEY, 0) == 1)
         {
@@ -92,7 +103,9 @@ public class PauseManager : MonoBehaviour
             isPaused = false;
             isGameOver = false;
             Time.timeScale = 1f;
+
             AudioListener.pause = false;
+            PlayNextGameplayTrack();
 
             if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
             if (mainMenuWindow != null) mainMenuWindow.SetActive(false);
@@ -100,6 +113,10 @@ public class PauseManager : MonoBehaviour
 
             if (points != null) points.SetActive(true);
             if (gameTimer != null) gameTimer.SetActive(true);
+
+            // На чистом быстром рестарте предупреждений изначально быть не должно
+            if (warningText != null) warningText.SetActive(false);
+            wasWarningActiveBeforePause = false;
         }
         else
         {
@@ -107,7 +124,9 @@ public class PauseManager : MonoBehaviour
             Time.timeScale = 0f;
             isInMainMenu = true;
             isPaused = true;
+
             AudioListener.pause = true;
+            PlayMenuMusic();
 
             if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
             if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
@@ -115,6 +134,10 @@ public class PauseManager : MonoBehaviour
 
             if (points != null) points.SetActive(false);
             if (gameTimer != null) gameTimer.SetActive(false);
+
+            // В самом главном меню при старте полностью отключаем текст варнинга
+            if (warningText != null) warningText.SetActive(false);
+            wasWarningActiveBeforePause = false;
 
             if (scorePopupText != null)
             {
@@ -130,7 +153,6 @@ public class PauseManager : MonoBehaviour
         if (gameOverText != null) gameOverText.gameObject.SetActive(false);
 
         UpdateMenuButtons();
-        LoadAndApplySettings();
 
         if (absToggle != null) absToggle.onValueChanged.AddListener(SetABS);
         if (autoTransmissionToggle != null) autoTransmissionToggle.onValueChanged.AddListener(SetTransmission);
@@ -144,6 +166,42 @@ public class PauseManager : MonoBehaviour
             if (isPaused) ResumeGame();
             else PauseGame();
         }
+
+        if (!isInMainMenu && musicAudioSource != null && !musicAudioSource.isPlaying)
+        {
+            PlayNextGameplayTrack();
+        }
+    }
+
+    private void PlayMenuMusic()
+    {
+        if (musicAudioSource == null || menuMusicClip == null) return;
+        musicAudioSource.ignoreListenerPause = true;
+        musicAudioSource.clip = menuMusicClip;
+        musicAudioSource.volume = currentVolumeValue;
+        musicAudioSource.loop = true;
+        musicAudioSource.Play();
+    }
+
+    private void PlayNextGameplayTrack()
+    {
+        if (musicAudioSource == null || gameplayMusicClips == null || gameplayMusicClips.Length == 0) return;
+        musicAudioSource.ignoreListenerPause = true;
+        musicAudioSource.loop = false;
+        musicAudioSource.clip = gameplayMusicClips[currentGameplayTrackIndex];
+        musicAudioSource.volume = currentVolumeValue;
+        musicAudioSource.Play();
+
+        currentGameplayTrackIndex++;
+        if (currentGameplayTrackIndex >= gameplayMusicClips.Length) currentGameplayTrackIndex = 0;
+    }
+
+    private void SetMusicVolume(float volume)
+    {
+        currentVolumeValue = volume;
+        if (musicAudioSource != null) musicAudioSource.volume = currentVolumeValue;
+        PlayerPrefs.SetFloat(MUSIC_VOLUME_KEY, currentVolumeValue);
+        PlayerPrefs.Save();
     }
 
     public void TriggerGameOver(int finalScores)
@@ -165,6 +223,9 @@ public class PauseManager : MonoBehaviour
         if (points != null) points.SetActive(false);
         if (gameTimer != null) gameTimer.SetActive(false);
 
+        // ⚡ КОНЕЦ ИГРЫ: принудительно гасим варнинг-текст, так как игра завершена
+        if (warningText != null) warningText.SetActive(false);
+
         if (gameOverText != null)
         {
             gameOverText.gameObject.SetActive(true);
@@ -175,14 +236,10 @@ public class PauseManager : MonoBehaviour
         UpdateMenuButtons();
     }
 
-    // ⚡ ГАРАНТИРОВАННЫЙ РЕСТАРТ С ИМПОРТОМ ОЧКОВ ИЗ CARGO_MANAGER
     public void RestartLevel()
     {
         CargoManager cargoManager = Object.FindFirstObjectByType<CargoManager>();
-        if (cargoManager != null)
-        {
-            currentScores = cargoManager.currentScore;
-        }
+        if (cargoManager != null) currentScores = cargoManager.currentScore;
 
         CheckAndSaveHighScore(currentScores);
         PlayerPrefs.SetInt(SAVED_SCORE_KEY, currentScores);
@@ -194,7 +251,6 @@ public class PauseManager : MonoBehaviour
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
-
 
     // ⚡ ГАРАНТИРОВАННЫЙ ВЫХОД В МЕНЮ С ИМПОРТОМ ОЧКОВ ИЗ CARGO_MANAGER
     public void GoToMainMenu()
@@ -222,8 +278,6 @@ public class PauseManager : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
-
-    // Когда нажимаем "Начать игру" из Главного меню — запускаем рекорд на 3 секунды
     public void StartGame()
     {
         isInMainMenu = false;
@@ -236,6 +290,9 @@ public class PauseManager : MonoBehaviour
         if (points != null) points.SetActive(true);
         if (gameTimer != null) gameTimer.SetActive(true);
         if (gameOverText != null) gameOverText.gameObject.SetActive(false);
+
+        if (musicAudioSource != null) musicAudioSource.Stop();
+        PlayNextGameplayTrack();
 
         int recordToShow = PlayerPrefs.GetInt(HIGH_SCORE_KEY, 0);
         StartCoroutine(ShowScorePopupRoutine(recordToShow));
@@ -279,6 +336,13 @@ public class PauseManager : MonoBehaviour
     public void PauseGame()
     {
         isPaused = true;
+
+        if (warningText != null)
+        {
+            wasWarningActiveBeforePause = warningText.activeSelf;
+            if (wasWarningActiveBeforePause) warningText.SetActive(false);
+        }
+
         if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
         if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
         if (settingsWindow != null) settingsWindow.SetActive(false);
@@ -298,6 +362,8 @@ public class PauseManager : MonoBehaviour
 
         if (points != null) points.SetActive(true);
         if (gameTimer != null) gameTimer.SetActive(true);
+
+        if (warningText != null && wasWarningActiveBeforePause) warningText.SetActive(true);
 
         AudioListener.pause = false;
         Time.timeScale = 1f;
@@ -411,6 +477,10 @@ public class PauseManager : MonoBehaviour
         bool hudValue = PlayerPrefs.GetInt(HUD_KEY, 1) == 1;
         if (gameplayHUD != null) gameplayHUD.SetActive(hudValue);
         if (hudToggle != null) hudToggle.onValueChanged.Invoke(hudValue);
+
+        currentVolumeValue = PlayerPrefs.GetFloat(MUSIC_VOLUME_KEY, 1f);
+        if (musicAudioSource != null) musicAudioSource.volume = currentVolumeValue;
+        if (musicVolumeSlider != null) musicVolumeSlider.value = currentVolumeValue;
     }
 
     private void SetABS(bool value)
