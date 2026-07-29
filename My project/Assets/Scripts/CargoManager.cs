@@ -1,29 +1,59 @@
 ﻿using UnityEngine;
-using UnityEngine.UI;
-using System.Collections;
+using TMPro;
 using System.Collections.Generic;
-using TMPro; // ОБЯЗАТЕЛЬНО для работы с TextMeshPro
+using System.Collections;
+
+public enum GameMode
+{
+    Endless,
+    Challenge
+}
 
 public class CargoManager : MonoBehaviour
 {
+    [Header("Режим игры")]
+    public GameMode currentMode = GameMode.Endless;
+    [Tooltip("Сколько заказов нужно выполнить в режиме Challenge")]
+    public int maxOrders = 5;
+
+    [Header("Настройки Медалей")]
+    public int scoreForGold = 1200;
+    public int scoreForSilver = 800;
+    public int scoreForBronze = 500;
+    public int scoreForWood = 200;
+
+    private int ordersCompleted = 0;
+
+    [Header("Финальный UI (для Challenge)")]
+    public GameObject gameOverPanel;
+    public UnityEngine.UI.Image gameOverBGImage; // ⚡ Ссылка на Image фона панели
+    public TMP_Text resultText;
+    public GameObject medalImage;
+
+    [Header("Цвета фона для медалей")]
+    public Color goldColor = new Color(1f, 0.84f, 0f, 0.9f);         // Золотой
+    public Color silverColor = new Color(0.75f, 0.75f, 0.75f, 0.9f);   // Серебряный
+    public Color bronzeColor = new Color(0.8f, 0.5f, 0.2f, 0.9f);     // Бронзовый
+    public Color woodColor = new Color(0.45f, 0.25f, 0.1f, 0.9f);     // Деревянный
+    public Color failColor = new Color(0.4f, 0f, 0f, 0.9f);           // Темно-красный (Провал)
+
     [Header("Ссылки на объекты")]
-    public GameObject[] cargoPrefabs; // Массив разных грузов
+    public GameObject[] cargoPrefabs;
     public Transform cargoSpawnPoint;
-    private bool isLate = false; // Отслеживает, опоздали мы или нет
 
     [Header("Зоны на сцене")]
     public GameObject pickupZoneObject;
     public GameObject dropoffZoneObject;
     public GameObject dropoffVisual;
 
-    [Header("Точки появления (Spawn Points)")]
+    [Header("Точки появления")]
     public Transform[] pickupSpawnPoints;
     public Transform[] dropoffSpawnPoints;
 
     [Header("Настройки утери")]
     public float lossDistance = 2.5f;
 
-    [Header("Очки и Таймер")]
+    [Header("Очки и UI")]
     public int currentScore = 0;
     public int deliveryReward = 200;
     public int lossPenalty = 100;
@@ -31,25 +61,25 @@ public class CargoManager : MonoBehaviour
     public TMP_Text timerText;
 
     [Header("Умный таймер")]
-    public float secondsPerMeter = 0.5f; // Сколько секунд даем за каждый метр пути
-    public float baseTimeBuffer = 15f;   // Несгораемый запас времени (на разгон и парковку)
-    private float deliveryTimeLimit;     // Теперь это скрытая переменная, скрипт считает ее сам
-
-    [Header("Настройки погрузки")]
-    public float pickupHoldTime = 2f; // Сколько секунд нужно простоять в зоне
-    private Coroutine pickupCoroutine;  // Ссылка на запущенный таймер
-    private bool isLoadingCargo = false; // Флаг, что прямо сейчас идет погрузка
+    public float secondsPerMeter = 0.5f;
+    public float baseTimeBuffer = 15f;
+    private float deliveryTimeLimit;
 
     [Header("Опоздание")]
-    public int penaltyPerSecond = 5; // Штраф за каждую секунду
-    private int appliedTimePenalty = 0; // Сколько штрафа уже начислено в этом рейсе
+    public int penaltyPerSecond = 5;
+    private bool isLate = false;
 
-    [Header("Защита от багов")]
+    [Header("Настройки погрузки")]
+    public float pickupHoldTime = 2f;
     public float spawnCooldown = 2f;
 
+    private Coroutine pickupCoroutine;
+    private Coroutine clearMessageCoroutine;
+    private bool isLoadingCargo = false;
+
     private GameObject spawnedCargoRoot;
-    private List<GameObject> activeCargoPieces = new List<GameObject>(); // Список всех коробок в кузове
-    private int initialPieceCount = 1; // Сколько коробок было изначально
+    private List<GameObject> activeCargoPieces = new List<GameObject>();
+    private int initialPieceCount = 1;
 
     private bool isCooldown = false;
     private Rigidbody truckRigidbody;
@@ -59,8 +89,9 @@ public class CargoManager : MonoBehaviour
     private Transform currentPickupPoint;
     private Transform lastDropoffPoint;
 
-    // Временная переменная для очистки сообщений
-    private Coroutine clearMessageCoroutine;
+    // --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ БУФЕРА ШТРАФОВ ---
+    private int currentOrderLostPenalty = 0;
+    private int currentOrderTimePenalty = 0;
 
     private void Start()
     {
@@ -68,6 +99,8 @@ public class CargoManager : MonoBehaviour
 
         if (dropoffZoneObject != null) dropoffZoneObject.SetActive(false);
         if (dropoffVisual != null) dropoffVisual.SetActive(false);
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
         SetFirstPickupZone();
 
         if (timerText != null) timerText.text = "";
@@ -89,12 +122,15 @@ public class CargoManager : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Pickup") && activeCargoPieces.Count == 0 && !isCooldown && !isLoadingCargo)
+        if (other.CompareTag("Pickup"))
         {
             isTimerRunning = false;
             isLate = false;
 
-            pickupCoroutine = StartCoroutine(PickupHoldRoutine());
+            if (activeCargoPieces.Count == 0 && !isCooldown && !isLoadingCargo)
+            {
+                pickupCoroutine = StartCoroutine(PickupHoldRoutine());
+            }
         }
         else if (other.CompareTag("Dropoff") && activeCargoPieces.Count > 0)
         {
@@ -104,16 +140,12 @@ public class CargoManager : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag("Pickup"))
+        if (other.CompareTag("Pickup") && pickupCoroutine != null)
         {
-            if (pickupCoroutine != null)
-            {
-                StopCoroutine(pickupCoroutine);
-                pickupCoroutine = null;
-                isLoadingCargo = false;
-
-                ShowTemporaryMessage("Загрузка отменена!", 2f);
-            }
+            StopCoroutine(pickupCoroutine);
+            pickupCoroutine = null;
+            isLoadingCargo = false;
+            ShowTemporaryMessage("Загрузка отменена!", 2f);
         }
     }
 
@@ -121,12 +153,10 @@ public class CargoManager : MonoBehaviour
     {
         isLoadingCargo = true;
         float timer = pickupHoldTime;
+
         while (timer > 0)
         {
-            if (timerText != null)
-            {
-                timerText.text = "Загрузка: " + timer.ToString("F1") + "с";
-            }
+            if (timerText != null) timerText.text = "Загрузка: " + timer.ToString("F1") + "с";
             timer -= Time.deltaTime;
             yield return null;
         }
@@ -138,13 +168,15 @@ public class CargoManager : MonoBehaviour
         StartCoroutine(SpawnCargoRoutine());
     }
 
-    // ⚡ ИСПРАВЛЕННЫЙ МЕТОД ПОГРУЗКИ (БЕЗЗВУЧНЫЙ СПАВН)
     private IEnumerator SpawnCargoRoutine()
     {
         isCooldown = true;
-        int randomCargoIndex = Random.Range(0, cargoPrefabs.Length);
 
-        // Спавним корневой объект груза
+        // Сбрасываем штрафы при новом заказе
+        currentOrderLostPenalty = 0;
+        currentOrderTimePenalty = 0;
+
+        int randomCargoIndex = Random.Range(0, cargoPrefabs.Length);
         spawnedCargoRoot = Instantiate(cargoPrefabs[randomCargoIndex], cargoSpawnPoint.position, cargoSpawnPoint.rotation);
 
         Rigidbody[] pieces = spawnedCargoRoot.GetComponentsInChildren<Rigidbody>();
@@ -152,28 +184,16 @@ public class CargoManager : MonoBehaviour
 
         foreach (Rigidbody rb in pieces)
         {
-            // ЗАЩИТА 1: Полностью выключаем звук удара на коробке во время спавна, чтобы она не гремела
-            AudioSource boxAudio = rb.gameObject.GetComponent<AudioSource>();
-            if (boxAudio != null) boxAudio.enabled = false;
-
-            // Также выключим кастомный скрипт звука удара (если он у вас есть на коробках)
-            MonoBehaviour impactScript = rb.gameObject.GetComponent("CarCollisionSound") as MonoBehaviour;
-            if (impactScript != null) impactScript.enabled = false;
-
-            // ЗАЩИТА 2: Временно включаем кинематику, чтобы коробки не падали рывком, создавая физический удар
-            rb.isKinematic = true;
+            rb.isKinematic = false;
             activeCargoPieces.Add(rb.gameObject);
 
-            // Мягко привязываем суставом к кузову машины
             FixedJoint joint = rb.gameObject.AddComponent<FixedJoint>();
             joint.connectedBody = truckRigidbody;
-
-            // Отключаем кинематику обратно, теперь они плавно соединены с машиной без падения
-            rb.isKinematic = false;
         }
 
         initialPieceCount = activeCargoPieces.Count;
         if (initialPieceCount == 0) initialPieceCount = 1;
+
         if (pickupZoneObject != null) pickupZoneObject.SetActive(false);
         SetRandomDropoffZone();
 
@@ -185,14 +205,12 @@ public class CargoManager : MonoBehaviour
 
         if (baseTimeBuffer <= 0) baseTimeBuffer = 15f;
         if (secondsPerMeter <= 0) secondsPerMeter = 0.5f;
+
         deliveryTimeLimit = baseTimeBuffer + (distance * secondsPerMeter);
-        Debug.Log("🚚 Дистанция: " + Mathf.RoundToInt(distance) + "м. | Выдано времени: " + Mathf.RoundToInt(deliveryTimeLimit) + "с.");
 
         isLate = false;
-        appliedTimePenalty = 0;
         currentTimer = deliveryTimeLimit;
 
-        // Ждем 1 секунду утряски груза на суставах в полной тишине
         yield return new WaitForSeconds(1f);
 
         foreach (GameObject piece in activeCargoPieces)
@@ -201,17 +219,11 @@ public class CargoManager : MonoBehaviour
             {
                 FixedJoint joint = piece.GetComponent<FixedJoint>();
                 if (joint != null) Destroy(joint);
-
-                // ⚡ ВКЛЮЧАЕМ ФИЗИЧЕСКИЙ ЗВУК ОБРАТНО: Теперь, если машина врежется во время езды, коробки загремят!
-                AudioSource boxAudio = piece.GetComponent<AudioSource>();
-                if (boxAudio != null) boxAudio.enabled = true;
-
-                MonoBehaviour impactScript = piece.GetComponent("CargoCollisionSound") as MonoBehaviour;
-                if (impactScript != null) impactScript.enabled = true;
             }
         }
 
         isTimerRunning = true;
+
         float remainingCooldown = Mathf.Max(0, spawnCooldown - 1f);
         if (remainingCooldown > 0) yield return new WaitForSeconds(remainingCooldown);
 
@@ -230,25 +242,16 @@ public class CargoManager : MonoBehaviour
             }
             else
             {
+                // Время вышло: просто записываем штраф в буфер, но НЕ отнимаем от общего счета
                 isLate = true;
                 float secondsLate = -currentTimer;
-                int totalExpectedPenalty = Mathf.FloorToInt(secondsLate * penaltyPerSecond);
 
-                if (totalExpectedPenalty > deliveryReward)
-                {
-                    totalExpectedPenalty = deliveryReward;
-                }
+                currentOrderTimePenalty = Mathf.FloorToInt(secondsLate * penaltyPerSecond);
 
-                int penaltyToApply = totalExpectedPenalty - appliedTimePenalty;
+                // Ограничиваем максимальный штраф за время размером награды
+                if (currentOrderTimePenalty > deliveryReward) currentOrderTimePenalty = deliveryReward;
 
-                if (penaltyToApply > 0)
-                {
-                    currentScore -= penaltyToApply;
-                    appliedTimePenalty = totalExpectedPenalty;
-                    UpdateScoreUI();
-                }
-
-                if (timerText != null) timerText.text = "Опоздание: -" + appliedTimePenalty;
+                if (timerText != null) timerText.text = "Штраф за время: -" + currentOrderTimePenalty;
             }
         }
 
@@ -269,59 +272,163 @@ public class CargoManager : MonoBehaviour
             if (activeCargoPieces.Count == 0 && spawnedCargoRoot != null)
             {
                 isTimerRunning = false;
+
+                // Считаем итоги перед удалением
+                CalculateAndApplyOrderScore();
+
                 ShowTemporaryMessage("Груз полностью утерян!", 2f);
                 if (spawnedCargoRoot != null) Destroy(spawnedCargoRoot);
-                ResetZones();
+
+                ProcessOrderCompletion();
             }
         }
     }
 
-
-
     private void LoseSinglePiece(GameObject piece)
     {
-        // Вычисляем штраф за один кусочек
+        // Не трогаем общий счет! Просто записываем штраф в буфер текущего рейса
         int piecePenalty = lossPenalty / initialPieceCount;
-        currentScore -= piecePenalty;
-        UpdateScoreUI();
+        currentOrderLostPenalty += piecePenalty;
 
-        Destroy(piece); // Удаляем упавшую коробку
-    }
-
-    private void TimeOut()
-    {
-        isTimerRunning = false;
-        if (timerText != null) timerText.text = "Время вышло!";
-
-        // Штрафуем за те коробки, которые остались в кузове
-        int piecePenalty = lossPenalty / initialPieceCount;
-        currentScore -= (piecePenalty * activeCargoPieces.Count);
-        UpdateScoreUI();
-
-        if (spawnedCargoRoot != null) Destroy(spawnedCargoRoot);
-        activeCargoPieces.Clear();
-
-        ResetZones();
+        Destroy(piece);
     }
 
     private void DeliverCargo()
     {
         isTimerRunning = false;
 
-        // Считаем награду только за ТЕ КОРОБКИ, КОТОРЫЕ ДОЕХАЛИ
-        int pieceReward = deliveryReward / initialPieceCount;
-        int totalRewardEarned = pieceReward * activeCargoPieces.Count;
-
-        currentScore += totalRewardEarned;
+        // Сводим дебет с кредитом
+        CalculateAndApplyOrderScore();
 
         ShowTemporaryMessage("Сдано: " + activeCargoPieces.Count + " из " + initialPieceCount, 2f);
-        UpdateScoreUI();
 
         if (spawnedCargoRoot != null) Destroy(spawnedCargoRoot);
         activeCargoPieces.Clear();
 
+        ProcessOrderCompletion();
+    }
+
+    // --- НОВЫЙ МЕТОД ПОДСЧЕТА ИТОГОВ РЕЙСА ---
+    private void CalculateAndApplyOrderScore()
+    {
+        // 1. Считаем, сколько заработали за довезенные коробки
+        int baseReward = 0;
+        if (activeCargoPieces.Count > 0)
+        {
+            int pieceReward = deliveryReward / initialPieceCount;
+            baseReward = pieceReward * activeCargoPieces.Count;
+        }
+
+        // 2. Считаем чистую прибыль: Награда минус Штраф за потерю минус Штраф за опоздание
+        int netScore = baseReward - currentOrderLostPenalty - currentOrderTimePenalty;
+
+        // 3. Добавляем к общему счету
+        currentScore += netScore;
+
+        // 4. Защита от ухода общего счета в минус
+        if (currentScore < 0) currentScore = 0;
+
+        UpdateScoreUI();
+    }
+
+    private void ProcessOrderCompletion()
+    {
+        if (currentMode == GameMode.Challenge)
+        {
+            ordersCompleted++;
+
+            if (ordersCompleted >= maxOrders)
+            {
+                StartCoroutine(EndGameRoutine());
+                return;
+            }
+        }
         ResetZones();
     }
+
+    private IEnumerator EndGameRoutine()
+    {
+        isTimerRunning = false;
+        if (dropoffZoneObject != null) dropoffZoneObject.SetActive(false);
+        if (pickupZoneObject != null) pickupZoneObject.SetActive(false);
+        if (dropoffVisual != null) dropoffVisual.SetActive(false);
+
+        yield return new WaitForSeconds(2f);
+
+        Time.timeScale = 0f;
+
+        if (timerText != null) timerText.text = "";
+        if (gameOverPanel != null) gameOverPanel.SetActive(true);
+
+        string highScoreKey = (currentMode == GameMode.Challenge) ? "HighScore_Challenge" : "HighScore_Endless";
+
+        int previousHighScore = PlayerPrefs.GetInt(highScoreKey, 0);
+        if (currentScore > previousHighScore)
+        {
+            PlayerPrefs.SetInt(highScoreKey, currentScore);
+        }
+        PlayerPrefs.SetInt("LastSavedScore", currentScore);
+        PlayerPrefs.Save();
+
+        // --- ЛОГИКА МЕДАЛЕЙ И ЦВЕТА ФОНА ---
+        string medalName = "";
+        string customMessage = "";
+        bool showMedalImage = true;
+        Color selectedColor = failColor; // Цвет по умолчанию (провал)
+
+        if (currentScore >= scoreForGold)
+        {
+            medalName = "ЗОЛОТО ";
+            customMessage = "Идеальная работа!";
+            selectedColor = goldColor;
+        }
+        else if (currentScore >= scoreForSilver)
+        {
+            medalName = "СЕРЕБРО ";
+            customMessage = "Хорошая работа, но можно лучше.";
+            selectedColor = silverColor;
+        }
+        else if (currentScore >= scoreForBronze)
+        {
+            medalName = "БРОНЗА ";
+            customMessage = "Неплохо, ты справился.";
+            selectedColor = bronzeColor;
+        }
+        else if (currentScore >= scoreForWood)
+        {
+            medalName = "ДЕРЕВО ";
+            customMessage = "Хуже некуда, босс в ярости!!!";
+            selectedColor = woodColor;
+        }
+        else
+        {
+            medalName = "ПОЛНЫЙ ПРОВАЛ ";
+            customMessage = "Ты уволен!!!";
+            showMedalImage = false;
+            selectedColor = failColor;
+        }
+
+        // ⚡ Меняем цвет фона панели
+        if (gameOverBGImage != null)
+        {
+            gameOverBGImage.color = selectedColor;
+        }
+        else if (gameOverPanel != null)
+        {
+            // Авто-поиск компонента Image, если забыли привязать в инспекторе
+            UnityEngine.UI.Image bg = gameOverPanel.GetComponent<UnityEngine.UI.Image>();
+            if (bg != null) bg.color = selectedColor;
+        }
+
+        // Выводим результат на экран
+        if (resultText != null)
+        {
+            resultText.text = "СМЕНА ОКОНЧЕНА!\n\nТвой результат: " + medalName + "\n(" + customMessage + ")\n\nИтоговый счет: " + currentScore;
+        }
+
+        if (medalImage != null) medalImage.SetActive(showMedalImage);
+    }
+
 
     private void ResetZones()
     {
@@ -388,28 +495,14 @@ public class CargoManager : MonoBehaviour
         if (scoreText != null) scoreText.text = "Очки: " + currentScore;
     }
 
-    // Сообщаем навигатору, что у нас еще есть хотя бы одна коробка в кузове
     public bool HasCargo() { return activeCargoPieces.Count > 0; }
 
-    public void ForceDropCargo()
-    {
-        if (activeCargoPieces.Count > 0)
-        {
-            TimeOut(); // Используем метод TimeOut для снятия очков за оставшийся груз
-        }
-    }
-
-    // Умная функция для временных сообщений
     private void ShowTemporaryMessage(string message, float delay = 2f)
     {
         if (timerText != null)
         {
             timerText.text = message;
-
-            // Если предыдущее сообщение еще висит - отменяем его удаление
             if (clearMessageCoroutine != null) StopCoroutine(clearMessageCoroutine);
-
-            // Запускаем таймер удаления нового сообщения
             clearMessageCoroutine = StartCoroutine(ClearMessageRoutine(delay));
         }
     }
@@ -417,8 +510,6 @@ public class CargoManager : MonoBehaviour
     private IEnumerator ClearMessageRoutine(float delay)
     {
         yield return new WaitForSeconds(delay);
-
-        // Очищаем текст только если сейчас не идет доставка и не идет загрузка
         if (timerText != null && !isTimerRunning && !isLoadingCargo)
         {
             timerText.text = "";
