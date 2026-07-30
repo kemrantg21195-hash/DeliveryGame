@@ -2686,7 +2686,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 0}
   m_PlayOnAwake: 0
-  m_Volume: 0.5
+  m_Volume: 0.05
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -10357,6 +10357,7 @@ MonoBehaviour:
   normalBrakeForce: 5082
   handbrakeForce: 15000
   idleBrakeForce: 300
+  downshiftBrakeForce: 10000
   cargoManager: {fileID: 963119395}
   loadedAccelerationMultiplier: 0.81
   accelerationSmoothness: 1
@@ -10586,8 +10587,8 @@ MonoBehaviour:
   woodColor: {r: 0.45, g: 0.25, b: 0.1, a: 0.61960787}
   failColor: {r: 0.4, g: 0, b: 0, a: 0.61960787}
   cargoPrefabs:
-  - {fileID: 1727012394070115576, guid: 19f19d05b5e4300469d5154fadbe6588, type: 3}
   - {fileID: 633645262421324649, guid: fe9ce999ea1e96c49a1b2f1cc0847dbb, type: 3}
+  - {fileID: 1727012394070115576, guid: 19f19d05b5e4300469d5154fadbe6588, type: 3}
   - {fileID: 6621791379361060347, guid: 062e5aad2f8145f45942ce4d3125bc1d, type: 3}
   cargoSpawnPoint: {fileID: 1667671048}
   pickupZoneObject: {fileID: 728269809}
@@ -13096,7 +13097,7 @@ Transform:
   m_GameObject: {fileID: 1196183031}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.0821, y: 0.889, z: -3.1243}
+  m_LocalPosition: {x: 1.0821, y: 0.889, z: -3.117}
   m_LocalScale: {x: 0.05444998, y: 0.05444998, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -22818,7 +22819,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 17.6, y: 0}
+  m_AnchoredPosition: {x: 17.599976, y: 0}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0, y: 1}
 --- !u!1 &1635579249
@@ -23122,7 +23123,7 @@ Transform:
   m_GameObject: {fileID: 1667276313}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -1.0821, y: 0.8891, z: -3.1243}
+  m_LocalPosition: {x: -1.0821, y: 0.8891, z: -3.117}
   m_LocalScale: {x: 0.05442, y: 0.05442, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -28273,7 +28274,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: cc450a686d384ce40a250634f92b77db, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 0.8
+  m_Volume: 0.397
   m_Pitch: 1
   Loop: 0
   Mute: 0

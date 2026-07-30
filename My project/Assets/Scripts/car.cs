@@ -39,6 +39,8 @@ public class PickupController : MonoBehaviour
     public float handbrakeForce = 6000f;
     [Tooltip("Торможение двигателем (когда газ отпущен)")]
     public float idleBrakeForce = 400f;
+    [Tooltip("Сила сопротивления двигателя при понижении передачи на высокой скорости")]
+    public float downshiftBrakeForce = 3500f;
 
     [Header("Система веса (Груз)")]
     public CargoManager cargoManager;
@@ -74,6 +76,9 @@ public class PickupController : MonoBehaviour
     private float currentRPM;
     private float currentSpeedKmH;
 
+    private bool shiftUpPressed = false;
+    private bool shiftDownPressed = false;
+
     public int CurrentGear => currentGear;
     public float CurrentRPM => currentRPM;
 
@@ -90,6 +95,16 @@ public class PickupController : MonoBehaviour
         {
             cargoManager = GetComponent<CargoManager>();
             if (cargoManager == null) cargoManager = GetComponentInParent<CargoManager>();
+        }
+    }
+
+    private void Update()
+    {
+        // Инпуты (GetKeyDown) всегда нужно считывать в Update!
+        if (!isAutomatic)
+        {
+            if (Input.GetKeyDown(KeyCode.E)) shiftUpPressed = true;
+            if (Input.GetKeyDown(KeyCode.Q)) shiftDownPressed = true;
         }
     }
 
@@ -154,9 +169,13 @@ public class PickupController : MonoBehaviour
         {
             if (!isClutchDisengaged)
             {
-                if (Input.GetKeyDown(KeyCode.E) && currentGear < gearRatios.Length) currentGear++;
-                if (Input.GetKeyDown(KeyCode.Q) && currentGear > -1) currentGear--;
+                if (shiftUpPressed && currentGear < gearRatios.Length) currentGear++;
+                if (shiftDownPressed && currentGear > -1) currentGear--;
             }
+
+            // Обязательно сбрасываем флаги, чтобы передача не перескочила дважды
+            shiftUpPressed = false;
+            shiftDownPressed = false;
         }
 
         if (currentGear != previousGear && previousGear != 0 && currentGear != 0)
@@ -215,6 +234,17 @@ public class PickupController : MonoBehaviour
         if (currentSpeedKmH >= maxAbsoluteSpeedKmH && currentMotorTorque * forwardSpeed > 0)
         {
             currentMotorTorque = 0f;
+        }
+
+        
+        if (currentGear > 0 && currentRPM >= maxEngineRPM * 0.95f && !isClutchDisengaged)
+        {
+            
+            if (currentBrakeForce < downshiftBrakeForce)
+            {
+                currentBrakeForce = downshiftBrakeForce;
+            }
+            currentMotorTorque = 0f; // Глушим тягу, мотор занят торможением
         }
 
         float fL_Brake = currentBrakeForce;

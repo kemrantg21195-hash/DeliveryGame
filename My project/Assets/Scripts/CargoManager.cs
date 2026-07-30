@@ -309,17 +309,17 @@ public class CargoManager : MonoBehaviour
     }
 
     // --- НОВЫЙ МЕТОД ПОДСЧЕТА ИТОГОВ РЕЙСА ---
+    // --- НОВЫЙ МЕТОД ПОДСЧЕТА ИТОГОВ РЕЙСА ---
     private void CalculateAndApplyOrderScore()
     {
-        // 1. Считаем, сколько заработали за довезенные коробки
+        // 1. Даем полную базовую награду, если довезли хотя бы один ящик
         int baseReward = 0;
         if (activeCargoPieces.Count > 0)
         {
-            int pieceReward = deliveryReward / initialPieceCount;
-            baseReward = pieceReward * activeCargoPieces.Count;
+            baseReward = deliveryReward; // Берем полную сумму (200)
         }
 
-        // 2. Считаем чистую прибыль: Награда минус Штраф за потерю минус Штраф за опоздание
+        // 2. Считаем чистую прибыль: Награда (200) минус Штрафы
         int netScore = baseReward - currentOrderLostPenalty - currentOrderTimePenalty;
 
         // 3. Добавляем к общему счету
